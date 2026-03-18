@@ -1,160 +1,63 @@
-# FlowForge — Enforced Workflow Engine for AI Agents
+# FlowForge — Workflow Engine for AI Agents
 
-## Problem
-AI agents skip steps, take shortcuts, and don't follow processes unless mechanically forced.
-This tool enforces workflows by blocking state transitions until all required conditions are met.
+## Architecture
 
-## Core Concept
-- **Workflow**: A named state machine defined in YAML
-- **Instance**: A running instance of a workflow, tracking current state and history
-- **Gate**: A condition that MUST be satisfied before moving to the next state
-- Gates can be: manual checklist items, automated checks (shell commands), or time-based waits
+FlowForge is NOT a sub-agent. FlowForge is a CLI tool + workflow definition that the **main agent (me) uses to control its own execution flow**.
 
-## CLI Interface
+### How it works:
 
-```bash
-# Workflow management
-flowforge define <workflow.yaml>     # Register a workflow definition
-flowforge list                       # List all workflow definitions
-flowforge show <workflow>            # Show workflow definition with states
+1. **cron** triggers my main session every 30 minutes
+2. I run `flowforge status` → it tells me what node I'm in and what task to do
+3. I **spawn a sub-agent** to execute that task (isolated token tracking)
+4. Sub-agent completes, reports result back to me
+5. I evaluate the result, decide which branch to take
+6. I run `flowforge next --branch N` → FlowForge moves me to next node
+7. Repeat until cron session ends or workflow loops back
 
-# Instance lifecycle
-flowforge start <workflow> [--context key=value]  # Start a new instance
-flowforge status [instance-id]       # Show current state, pending gates, history
-flowforge active                     # List all active instances
+### The key insight:
 
-# Gate operations (THE CORE)
-flowforge check <instance-id>        # Run all auto-checks for current state
-flowforge complete <instance-id> <gate-name>  # Mark a manual gate as done
-flowforge advance <instance-id>      # Try to advance to next state (fails if gates not met)
-flowforge force <instance-id> <state>  # Force transition (requires --reason, logged as violation)
+- **FlowForge = the workflow state machine** (what to do, in what order)
+- **Sub-agents = the workers** (do the actual task)
+- **Main session (me) = the coordinator** (reads workflow, spawns workers, evaluates results, advances state)
 
-# History
-flowforge history <instance-id>      # Full transition history with timestamps
+I am both the executor AND the manager, but FlowForge constrains my management decisions to the predefined workflow.
+
+### Cron session flow:
+
+```
+cron kicks me →
+  flowforge status → current node = "followup"
+  spawn sub-agent: "用 gogetajob sync 检查所有 PR，处理 review 反馈"
+  sub-agent reports: "PR #279 有新 review，已处理并 push"
+  I evaluate: 有处理过 review → branch 1: handle_review? 不对，已经处理完了
+  flowforge next --branch 2 → find_work
+  spawn sub-agent: "用 gogetajob scan + feed 找新活"
+  sub-agent reports: "找到 ClawX issue #XX"
+  flowforge next --branch 1 → study
+  spawn sub-agent: "研究 ClawX 代码和这个 issue"
+  ...continue until cron timeout...
 ```
 
-## Workflow YAML Schema
+## Workflow YAML
 
-```yaml
-name: contribute
-description: "Open source contribution workflow"
+Nodes have:
+- `task`: natural language description (becomes sub-agent's task prompt)
+- `next`: linear progression
+- `branches`: conditional branching based on result
 
-context:
-  - repo        # required context variables
-  - issue_number
+## CLI
 
-states:
-  study:
-    description: "Understand the project before coding"
-    gates:
-      - name: read_contributing
-        type: manual
-        description: "Read CONTRIBUTING.md and understand conventions"
-      - name: check_no_competing_pr
-        type: auto
-        command: "gh pr list -R {{repo}} --search '{{issue_number}}' --state open --json number --jq length"
-        expect: "0"
-        description: "No competing PRs for this issue"
-    next: implement
+- `flowforge define <yaml>` — register workflow
+- `flowforge start <workflow>` — start instance
+- `flowforge status` — current node + task + branches
+- `flowforge next [--branch N]` — advance
+- `flowforge log` — history
+- `flowforge reset` — restart
 
-  implement:
-    description: "Write the code"
-    gates:
-      - name: tests_pass
-        type: auto
-        command: "npm test"
-        expect_exit: 0
-        description: "All tests pass locally"
-      - name: code_committed
-        type: auto
-        command: "git status --porcelain"
-        expect: ""
-        description: "All changes committed"
-    next: submit
+## Why this works
 
-  submit:
-    description: "Push and create PR"
-    gates:
-      - name: pr_created
-        type: auto
-        command: "gh pr view --json number --jq .number 2>/dev/null"
-        expect_not: ""
-        description: "PR exists on GitHub"
-    next: post_submit_check
-
-  post_submit_check:
-    description: "Wait for CI and automated review"
-    gates:
-      - name: wait_ci
-        type: wait
-        duration: 5m
-        description: "Wait 5 minutes for CI to start"
-      - name: ci_passing
-        type: auto
-        command: "gh pr checks --json state --jq '.[] | select(.state != \"SUCCESS\" and .state != \"SKIPPED\") | .state' | head -1"
-        expect: ""
-        description: "All CI checks pass"
-      - name: review_checked
-        type: auto
-        command: "gh pr view --json comments --jq '.comments | length'"
-        expect_not: ""
-        description: "Checked for review comments"
-      - name: review_addressed
-        type: manual
-        description: "All automated review feedback has been addressed"
-    next: await_human_review
-
-  await_human_review:
-    description: "Wait for maintainer review"
-    gates:
-      - name: has_review
-        type: auto
-        command: "gh pr view --json reviews --jq '[.reviews[] | select(.state == \"APPROVED\" or .state == \"CHANGES_REQUESTED\")] | length'"
-        expect_not: "0"
-        description: "Maintainer has reviewed"
-    on:
-      changes_requested: respond
-    next: done
-
-  respond:
-    description: "Address review feedback"
-    gates:
-      - name: changes_pushed
-        type: auto
-        command: "git log --oneline -1 --format=%s"
-        expect_not: ""
-        description: "Fix commit pushed"
-      - name: tests_pass
-        type: auto
-        command: "npm test"
-        expect_exit: 0
-    next: post_submit_check
-
-  done:
-    description: "PR merged or closed"
-    terminal: true
-
-# Enforcement rules
-enforcement:
-  block_parallel: true          # Can't start new instance while one is active
-  require_reason_for_force: true  # Force transitions must explain why
-  log_violations: true          # Track every time force was used
-```
-
-## Data Storage
-- SQLite database at `~/.flowforge/flowforge.db`
-- Tables: workflows, instances, gates, transitions, violations
-- Each transition logged with timestamp, from_state, to_state, gates_satisfied
-
-## Key Design Decisions
-1. **Gates are blocking** — `advance` fails with a clear error showing which gates aren't met
-2. **Auto-checks are re-runnable** — `check` can be run repeatedly until conditions are met
-3. **Force exists but is logged** — escape hatch for emergencies, but creates a paper trail
-4. **Context variables** — `{{repo}}`, `{{issue_number}}` are substituted in commands
-5. **block_parallel** — prevents the exact problem of abandoning one PR to start another
-
-## Tech Stack
-- TypeScript + Node.js
-- SQLite (better-sqlite3)
-- YAML parsing (js-yaml)
-- Single binary via esbuild
+1. FlowForge persists state in SQLite → survives session restarts
+2. Each cron session reads state, continues from where last session left off
+3. Sub-agents do isolated work with tracked tokens
+4. The workflow YAML is the source of truth for what I should be doing
+5. I can't "forget" to check reviews because the workflow starts with followup

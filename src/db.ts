@@ -3,189 +3,131 @@ import { homedir } from "os";
 import { join } from "path";
 import { mkdirSync } from "fs";
 
-const DB_DIR = join(homedir(), ".flowforge");
-const DB_PATH = join(DB_DIR, "flowforge.db");
+const DIR = join(homedir(), ".flowforge");
+mkdirSync(DIR, { recursive: true });
 
-let _db: Database.Database | null = null;
+const db = new Database(join(DIR, "flowforge.db"));
+db.pragma("journal_mode = WAL");
+db.pragma("foreign_keys = ON");
 
-export function getDb(): Database.Database {
-  if (_db) return _db;
-  mkdirSync(DB_DIR, { recursive: true });
-  _db = new Database(DB_PATH);
-  _db.pragma("journal_mode = WAL");
-  _db.pragma("foreign_keys = ON");
-  initSchema(_db);
-  return _db;
-}
+db.exec(`
+  CREATE TABLE IF NOT EXISTS workflows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    yaml_content TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS instances (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workflow_name TEXT NOT NULL,
+    current_node TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (workflow_name) REFERENCES workflows(name)
+  );
+  CREATE TABLE IF NOT EXISTS history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    instance_id INTEGER NOT NULL,
+    node_name TEXT NOT NULL,
+    branch_taken TEXT,
+    entered_at TEXT DEFAULT (datetime('now')),
+    exited_at TEXT,
+    FOREIGN KEY (instance_id) REFERENCES instances(id)
+  );
+`);
 
-function initSchema(db: Database.Database): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS workflows (
-      name TEXT PRIMARY KEY,
-      yaml TEXT NOT NULL,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+// --- Workflow queries ---
 
-    CREATE TABLE IF NOT EXISTS instances (
-      id TEXT PRIMARY KEY,
-      workflow TEXT NOT NULL,
-      context_json TEXT NOT NULL DEFAULT '{}',
-      current_state TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      state_entered_at TEXT NOT NULL DEFAULT (datetime('now')),
-      status TEXT NOT NULL DEFAULT 'active',
-      FOREIGN KEY (workflow) REFERENCES workflows(name)
-    );
-
-    CREATE TABLE IF NOT EXISTS gate_status (
-      instance_id TEXT NOT NULL,
-      state TEXT NOT NULL,
-      gate_name TEXT NOT NULL,
-      satisfied INTEGER NOT NULL DEFAULT 0,
-      checked_at TEXT,
-      output TEXT,
-      PRIMARY KEY (instance_id, state, gate_name),
-      FOREIGN KEY (instance_id) REFERENCES instances(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS transitions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      instance_id TEXT NOT NULL,
-      from_state TEXT NOT NULL,
-      to_state TEXT NOT NULL,
-      timestamp TEXT NOT NULL DEFAULT (datetime('now')),
-      forced INTEGER NOT NULL DEFAULT 0,
-      reason TEXT,
-      FOREIGN KEY (instance_id) REFERENCES instances(id)
-    );
-  `);
-}
-
-// --- Workflow operations ---
-
-export function saveWorkflow(name: string, yaml: string): void {
-  const db = getDb();
+export function upsertWorkflow(name: string, yaml: string) {
   db.prepare(`
-    INSERT INTO workflows (name, yaml, updated_at) VALUES (?, ?, datetime('now'))
-    ON CONFLICT(name) DO UPDATE SET yaml = excluded.yaml, updated_at = datetime('now')
-  `).run(name, yaml);
+    INSERT INTO workflows (name, yaml_content) VALUES (?, ?)
+    ON CONFLICT(name) DO UPDATE SET yaml_content = ?, updated_at = datetime('now')
+  `).run(name, yaml, yaml);
 }
 
-export function getWorkflow(name: string): { name: string; yaml: string; updated_at: string } | undefined {
-  const db = getDb();
-  return db.prepare("SELECT * FROM workflows WHERE name = ?").get(name) as any;
+export function getWorkflow(name: string) {
+  return db.prepare("SELECT * FROM workflows WHERE name = ?").get(name) as
+    | { id: number; name: string; yaml_content: string }
+    | undefined;
 }
 
-export function listWorkflows(): { name: string; updated_at: string }[] {
-  const db = getDb();
-  return db.prepare("SELECT name, updated_at FROM workflows ORDER BY name").all() as any[];
+export function listWorkflows() {
+  return db.prepare("SELECT name, updated_at FROM workflows ORDER BY name").all() as {
+    name: string;
+    updated_at: string;
+  }[];
 }
 
-// --- Instance operations ---
+// --- Instance queries ---
 
-export function createInstance(id: string, workflow: string, contextJson: string, initialState: string): void {
-  const db = getDb();
-  db.prepare(`
-    INSERT INTO instances (id, workflow, context_json, current_state, created_at, updated_at, state_entered_at, status)
-    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'), 'active')
-  `).run(id, workflow, contextJson, initialState);
+export function createInstance(workflowName: string, startNode: string) {
+  const res = db.prepare(
+    "INSERT INTO instances (workflow_name, current_node, status) VALUES (?, ?, 'active')"
+  ).run(workflowName, startNode);
+  return res.lastInsertRowid as number;
 }
 
-export function getInstance(id: string): {
-  id: string; workflow: string; context_json: string; current_state: string;
-  created_at: string; updated_at: string; state_entered_at: string; status: string;
-} | undefined {
-  const db = getDb();
-  return db.prepare("SELECT * FROM instances WHERE id = ?").get(id) as any;
-}
-
-export function getActiveInstances(): {
-  id: string; workflow: string; current_state: string; created_at: string; updated_at: string; status: string;
-}[] {
-  const db = getDb();
-  return db.prepare("SELECT * FROM instances WHERE status = 'active' ORDER BY created_at DESC").all() as any[];
-}
-
-export function getActiveInstancesForWorkflow(workflow: string): { id: string }[] {
-  const db = getDb();
-  return db.prepare("SELECT id FROM instances WHERE workflow = ? AND status = 'active'").all(workflow) as any[];
-}
-
-export function getMostRecentActiveInstance(): {
-  id: string; workflow: string; current_state: string; created_at: string; updated_at: string; status: string;
-} | undefined {
-  const db = getDb();
-  return db.prepare("SELECT * FROM instances WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1").get() as any;
-}
-
-export function updateInstanceState(id: string, newState: string): void {
-  const db = getDb();
-  db.prepare(`
-    UPDATE instances SET current_state = ?, updated_at = datetime('now'), state_entered_at = datetime('now') WHERE id = ?
-  `).run(newState, id);
-}
-
-export function completeInstance(id: string): void {
-  const db = getDb();
-  db.prepare("UPDATE instances SET status = 'completed', updated_at = datetime('now') WHERE id = ?").run(id);
-}
-
-// --- Gate status operations ---
-
-export function getGateStatus(instanceId: string, state: string, gateName: string): {
-  instance_id: string; state: string; gate_name: string; satisfied: number; checked_at: string; output: string;
-} | undefined {
-  const db = getDb();
+export function getActiveInstance(workflowName?: string) {
+  if (workflowName) {
+    return db.prepare(
+      "SELECT * FROM instances WHERE workflow_name = ? AND status = 'active' ORDER BY id DESC LIMIT 1"
+    ).get(workflowName) as InstanceRow | undefined;
+  }
   return db.prepare(
-    "SELECT * FROM gate_status WHERE instance_id = ? AND state = ? AND gate_name = ?"
-  ).get(instanceId, state, gateName) as any;
+    "SELECT * FROM instances WHERE status = 'active' ORDER BY id DESC LIMIT 1"
+  ).get() as InstanceRow | undefined;
 }
 
-export function getGateStatusesForState(instanceId: string, state: string): {
-  instance_id: string; state: string; gate_name: string; satisfied: number; checked_at: string; output: string;
-}[] {
-  const db = getDb();
+export function listActiveInstances() {
   return db.prepare(
-    "SELECT * FROM gate_status WHERE instance_id = ? AND state = ?"
-  ).all(instanceId, state) as any[];
+    "SELECT id, workflow_name, current_node, created_at FROM instances WHERE status = 'active' ORDER BY id"
+  ).all() as { id: number; workflow_name: string; current_node: string; created_at: string }[];
 }
 
-export function updateGateStatus(
-  instanceId: string, state: string, gateName: string, satisfied: boolean, output: string
-): void {
-  const db = getDb();
-  db.prepare(`
-    INSERT INTO gate_status (instance_id, state, gate_name, satisfied, checked_at, output)
-    VALUES (?, ?, ?, ?, datetime('now'), ?)
-    ON CONFLICT(instance_id, state, gate_name)
-    DO UPDATE SET satisfied = excluded.satisfied, checked_at = datetime('now'), output = excluded.output
-  `).run(instanceId, state, gateName, satisfied ? 1 : 0, output);
+export function updateInstanceNode(id: number, node: string) {
+  db.prepare(
+    "UPDATE instances SET current_node = ?, updated_at = datetime('now') WHERE id = ?"
+  ).run(node, id);
 }
 
-export function clearGateStatusesForState(instanceId: string, state: string): void {
-  const db = getDb();
-  db.prepare("DELETE FROM gate_status WHERE instance_id = ? AND state = ?").run(instanceId, state);
+export function setInstanceStatus(id: number, status: string) {
+  db.prepare(
+    "UPDATE instances SET status = ?, updated_at = datetime('now') WHERE id = ?"
+  ).run(status, id);
 }
 
-// --- Transition operations ---
+// --- History queries ---
 
-export function recordTransition(
-  instanceId: string, fromState: string, toState: string, forced: boolean, reason?: string
-): void {
-  const db = getDb();
-  db.prepare(`
-    INSERT INTO transitions (instance_id, from_state, to_state, timestamp, forced, reason)
-    VALUES (?, ?, ?, datetime('now'), ?, ?)
-  `).run(instanceId, fromState, toState, forced ? 1 : 0, reason ?? null);
+export function addHistory(instanceId: number, nodeName: string) {
+  db.prepare(
+    "INSERT INTO history (instance_id, node_name) VALUES (?, ?)"
+  ).run(instanceId, nodeName);
 }
 
-export function getTransitions(instanceId: string): {
-  id: number; instance_id: string; from_state: string; to_state: string;
-  timestamp: string; forced: number; reason: string | null;
-}[] {
-  const db = getDb();
+export function closeHistory(instanceId: number, nodeName: string, branchTaken: string | null) {
+  db.prepare(
+    "UPDATE history SET exited_at = datetime('now'), branch_taken = ? WHERE instance_id = ? AND node_name = ? AND exited_at IS NULL"
+  ).run(branchTaken, instanceId, nodeName);
+}
+
+export function getHistory(instanceId: number) {
   return db.prepare(
-    "SELECT * FROM transitions WHERE instance_id = ? ORDER BY id ASC"
-  ).all(instanceId) as any[];
+    "SELECT node_name, branch_taken, entered_at, exited_at FROM history WHERE instance_id = ? ORDER BY id"
+  ).all(instanceId) as {
+    node_name: string;
+    branch_taken: string | null;
+    entered_at: string;
+    exited_at: string | null;
+  }[];
 }
+
+export type InstanceRow = {
+  id: number;
+  workflow_name: string;
+  current_node: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};

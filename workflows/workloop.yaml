@@ -1,0 +1,93 @@
+name: workloop
+description: "打工循环 — 每轮先跟进已有工作，再找新活"
+start: followup
+
+nodes:
+  followup:
+    task: |
+      用 gogetajob sync 检查所有已提交 PR 的状态。
+      对每个有新 review comment 或 CI 失败的 PR，列出详情。
+      如果有需要处理的反馈，说明具体是哪个 PR、什么反馈。
+    branches:
+      - condition: "有待处理的 review 或 CI 问题"
+        next: handle_feedback
+      - condition: "所有 PR 状态正常，没有待处理的"
+        next: find_work
+
+  handle_feedback:
+    task: |
+      处理上一步发现的 PR 反馈：
+      1. 读 review 评论，理解要求
+      2. 修改代码
+      3. 跑测试确保通过
+      4. 提交并 push
+      5. 在 PR 上回复 reviewer
+      处理完所有反馈后汇报结果。
+    next: followup
+
+  find_work:
+    task: |
+      用 gogetajob scan 扫描目标公司（NVIDIA/NemoClaw, BlockRunAI/ClawRouter, ValueCell-ai/ClawX）。
+      用 gogetajob feed 查看可做的 issue。
+      选择一个最有价值的 issue：优先选真实 bug > 测试覆盖 > 文档 > feature。
+      确认没有竞争 PR。
+      汇报选中的 issue 和理由。
+    branches:
+      - condition: "找到了合适的 issue"
+        next: study
+      - condition: "没有合适的 issue 可做"
+        next: done
+
+  study:
+    task: |
+      深入研究选中的项目和 issue：
+      1. 读 CONTRIBUTING.md
+      2. 理解相关代码模块的结构
+      3. 确认 issue 的根因或需求
+      4. 确认没有人在做同一个 issue
+      5. 评估是否真的能在这个 repo 修（不是上游问题）
+      汇报你的理解和实现计划。
+    branches:
+      - condition: "issue 可做，计划明确"
+        next: implement
+      - condition: "issue 不合适（上游问题/竞争PR/太复杂），需要重选"
+        next: find_work
+
+  implement:
+    task: |
+      按照 study 阶段的计划实现：
+      1. 写代码
+      2. 确保代码风格符合项目规范
+      3. 跑所有测试，确保通过
+      4. 提交，commit message 清晰
+      汇报实现结果和测试状态。
+    next: submit
+
+  submit:
+    task: |
+      提交 PR：
+      1. push 分支到 fork
+      2. 创建 PR，标题清晰，描述写明改了什么、为什么、怎么测的
+      3. 关联 issue（Closes #XX）
+      用 gogetajob import 记录这个 PR。
+      汇报 PR 链接。
+    next: verify
+
+  verify:
+    task: |
+      等 3-5 分钟，然后检查 PR 状态：
+      1. CI 是否通过？
+      2. 有没有自动化 review（CodeRabbit 等）？
+      3. 如果有反馈，立即处理
+      这一步不能跳过。做完所有检查后汇报结果。
+    branches:
+      - condition: "CI 通过，review 反馈已处理（或没有反馈）"
+        next: done
+      - condition: "有问题需要修改"
+        next: implement
+
+  done:
+    task: |
+      这一轮工作完成。记录今天的工作到 memory 文件。
+      汇报本轮成果。
+    next: followup

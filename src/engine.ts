@@ -1,129 +1,126 @@
-import { randomBytes } from "crypto";
-import {
-  getInstance,
-  getGateStatus,
-  getGateStatusesForState,
-  updateGateStatus,
-  updateInstanceState,
-  recordTransition,
-  completeInstance,
-} from "./db.js";
-import { Workflow, State } from "./workflow.js";
-import { evaluateGate, GateResult } from "./gates.js";
+import { parseWorkflow, type Workflow, type WorkflowNode } from "./workflow.js";
+import * as db from "./db.js";
 
-export function generateId(): string {
-  return randomBytes(4).toString("hex");
+function loadWorkflow(name: string): Workflow {
+  const row = db.getWorkflow(name);
+  if (!row) throw new Error(`Workflow '${name}' not found`);
+  return parseWorkflow(row.yaml_content);
 }
 
-export interface CheckResult {
-  allSatisfied: boolean;
-  results: GateResult[];
-  satisfiedCount: number;
-  totalCount: number;
+function requireActiveInstance(workflowName?: string) {
+  const inst = db.getActiveInstance(workflowName);
+  if (!inst) throw new Error("No active instance. Use 'flowforge start <workflow>' first.");
+  return inst;
 }
 
-export function checkGates(
-  instanceId: string,
-  workflow: Workflow,
-  currentState: string,
-  context: Record<string, string>,
-  stateEnteredAt: string
-): CheckResult {
-  const state = workflow.states[currentState];
-  if (!state) throw new Error(`Unknown state: ${currentState}`);
+export function define(yamlContent: string) {
+  const wf = parseWorkflow(yamlContent);
+  db.upsertWorkflow(wf.name, yamlContent);
+  return wf.name;
+}
 
-  const results: GateResult[] = [];
-
-  for (const gate of state.gates) {
-    if (gate.type === "manual") {
-      // Check DB for manual completion
-      const dbStatus = getGateStatus(instanceId, currentState, gate.name);
-      const satisfied = dbStatus?.satisfied === 1;
-      results.push({
-        name: gate.name,
-        type: "manual",
-        satisfied,
-        output: satisfied ? "Marked complete" : "Requires manual completion",
-        description: gate.description,
-      });
-      updateGateStatus(instanceId, currentState, gate.name, satisfied, satisfied ? "Marked complete" : "Pending");
-    } else {
-      // Evaluate auto and wait gates
-      const result = evaluateGate(gate, context, stateEnteredAt);
-      results.push(result);
-      updateGateStatus(instanceId, currentState, gate.name, result.satisfied, result.output);
-    }
+export function start(workflowName: string) {
+  const wf = loadWorkflow(workflowName);
+  const existing = db.getActiveInstance(workflowName);
+  if (existing) {
+    throw new Error(
+      `Workflow '${workflowName}' already has an active instance (id=${existing.id}). Use 'flowforge reset' to restart.`
+    );
   }
+  const id = db.createInstance(workflowName, wf.start);
+  db.addHistory(id, wf.start);
+  return { id, node: wf.start };
+}
 
-  const satisfiedCount = results.filter((r) => r.satisfied).length;
+export function status(workflowName?: string) {
+  const inst = requireActiveInstance(workflowName);
+  const wf = loadWorkflow(inst.workflow_name);
+  const node = wf.nodes[inst.current_node];
+  if (!node) throw new Error(`Node '${inst.current_node}' not found in workflow`);
+
   return {
-    allSatisfied: satisfiedCount === results.length,
-    results,
-    satisfiedCount,
-    totalCount: results.length,
+    instanceId: inst.id,
+    workflowName: inst.workflow_name,
+    workflowDescription: wf.description,
+    currentNode: inst.current_node,
+    task: node.task,
+    branches: node.branches || null,
+    hasNext: !!node.next,
+    nextNode: node.next || null,
   };
 }
 
-export function canAdvance(
-  instanceId: string,
-  workflow: Workflow,
-  currentState: string,
-  context: Record<string, string>,
-  stateEnteredAt: string
-): CheckResult {
-  return checkGates(instanceId, workflow, currentState, context, stateEnteredAt);
+export function next(branch?: number, workflowName?: string) {
+  const inst = requireActiveInstance(workflowName);
+  const wf = loadWorkflow(inst.workflow_name);
+  const node = wf.nodes[inst.current_node];
+  if (!node) throw new Error(`Node '${inst.current_node}' not found`);
+
+  let nextNode: string;
+  let branchTaken: string | null = null;
+
+  if (node.branches) {
+    if (branch === undefined) {
+      const lines = node.branches.map((b, i) => `  ${i + 1}. ${b.condition} → ${b.next}`);
+      throw new Error(
+        `This node has branches. Use --branch <N>:\n${lines.join("\n")}`
+      );
+    }
+    if (branch < 1 || branch > node.branches.length) {
+      throw new Error(`Branch must be between 1 and ${node.branches.length}`);
+    }
+    const chosen = node.branches[branch - 1];
+    nextNode = chosen.next;
+    branchTaken = chosen.condition;
+  } else if (node.next) {
+    nextNode = node.next;
+  } else {
+    throw new Error("Node has no next or branches — this should not happen");
+  }
+
+  // Close current history entry, move to next node, open new history entry
+  db.closeHistory(inst.id, inst.current_node, branchTaken);
+  db.updateInstanceNode(inst.id, nextNode);
+  db.addHistory(inst.id, nextNode);
+
+  const nextNodeDef = wf.nodes[nextNode];
+  return {
+    from: inst.current_node,
+    to: nextNode,
+    branchTaken,
+    task: nextNodeDef.task,
+    branches: nextNodeDef.branches || null,
+    hasNext: !!nextNodeDef.next,
+  };
 }
 
-export function advance(
-  instanceId: string,
-  workflow: Workflow,
-  currentState: string,
-  context: Record<string, string>,
-  stateEnteredAt: string
-): { newState: string; checkResult: CheckResult } {
-  const state = workflow.states[currentState];
-  if (!state) throw new Error(`Unknown state: ${currentState}`);
-  if (state.terminal) throw new Error(`Cannot advance from terminal state '${currentState}'`);
-
-  const result = canAdvance(instanceId, workflow, currentState, context, stateEnteredAt);
-
-  if (!result.allSatisfied) {
-    const blocking = result.results.filter((r) => !r.satisfied);
-    const details = blocking
-      .map((r) => `  - ${r.name} (${r.type}): ${r.output}`)
-      .join("\n");
-    throw new Error(
-      `Cannot advance: ${blocking.length} gate(s) not satisfied:\n${details}`
-    );
-  }
-
-  const nextState = state.next!;
-  recordTransition(instanceId, currentState, nextState, false);
-  updateInstanceState(instanceId, nextState);
-
-  // If next state is terminal, complete the instance
-  if (workflow.states[nextState]?.terminal) {
-    completeInstance(instanceId);
-  }
-
-  return { newState: nextState, checkResult: result };
+export function log(workflowName?: string) {
+  const inst = requireActiveInstance(workflowName);
+  return {
+    workflowName: inst.workflow_name,
+    instanceId: inst.id,
+    entries: db.getHistory(inst.id),
+  };
 }
 
-export function forceAdvance(
-  instanceId: string,
-  workflow: Workflow,
-  currentState: string,
-  targetState: string,
-  reason: string
-): void {
-  if (!workflow.states[targetState]) {
-    throw new Error(`Unknown target state: '${targetState}'`);
-  }
+export function list() {
+  return db.listWorkflows();
+}
 
-  recordTransition(instanceId, currentState, targetState, true, reason);
-  updateInstanceState(instanceId, targetState);
+export function active() {
+  return db.listActiveInstances();
+}
 
-  if (workflow.states[targetState]?.terminal) {
-    completeInstance(instanceId);
-  }
+export function reset(workflowName?: string) {
+  const inst = requireActiveInstance(workflowName);
+  const wf = loadWorkflow(inst.workflow_name);
+
+  // Mark old instance as done
+  db.closeHistory(inst.id, inst.current_node, null);
+  db.setInstanceStatus(inst.id, "done");
+
+  // Start fresh
+  const id = db.createInstance(inst.workflow_name, wf.start);
+  db.addHistory(id, wf.start);
+  return { id, node: wf.start };
 }
