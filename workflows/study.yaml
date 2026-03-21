@@ -1,0 +1,88 @@
+name: study
+description: 学习循环 — 深入研究开源项目的架构、设计、模式，产出田野笔记
+
+start: followup
+
+nodes:
+  followup:
+    task: |
+      检查已关注项目的新动态：
+      1. 读 field-notes/projects/ 目录，列出已有田野笔记的项目
+      2. 对每个项目，用 gh 检查最近有没有值得学习的变化：
+         - 大的 PR 被 merge（架构重构、新 feature）
+         - 重要的 issue 讨论（设计决策、方向争论）
+         - 新的 release
+      3. 不需要每个都查，选 2-3 个最活跃的
+      汇报哪些项目有新动态值得深入。
+    branches:
+      - condition: "有项目有值得学习的新动态"
+        next: deep_read
+      - condition: "已关注项目没什么新的，去发现新项目"
+        next: discover
+      - condition: "什么都不想做"
+        next: reflect
+
+  discover:
+    task: |
+      寻找新的值得研究的项目：
+      1. 从最近的对话、打工、阅读中找线索
+      2. 在 GitHub trending 或相关领域搜索
+      3. 从已关注项目的依赖、引用、相关项目中发现
+      4. 评估标准：
+         - 架构上有值得学的东西（不只是代码量大）
+         - 跟我们关注的领域相关（AI agent、开发者工具、自我改进）
+         - 代码质量好，值得读
+      汇报发现的项目和为什么值得研究。
+    branches:
+      - condition: "找到了值得研究的新项目"
+        next: deep_read
+      - condition: "没找到合适的"
+        next: reflect
+
+  deep_read:
+    task: |
+      深入阅读选中项目的代码和文档：
+      1. 如果是新项目：clone，读 README、架构文档、核心模块
+      2. 如果是已关注项目：读新变化的代码，理解设计决策
+      3. 重点关注：
+         - 架构模式（为什么这样设计？有什么 tradeoff？）
+         - 代码组织（模块划分、依赖关系）
+         - 测试策略
+         - 错误处理方式
+         - 跟我见过的其他项目的异同
+      4. 带着问题读，不是漫无目的地浏览
+      汇报你的理解和发现。
+    next: note
+
+  note:
+    task: |
+      把学到的东西写进田野笔记：
+      1. 新项目 → 在 field-notes/projects/ 创建新文件
+      2. 已有项目 → 追加新发现，不重复已有内容
+      3. 写作要求：
+         - 记架构洞察，不记流水账
+         - 记"为什么"，不只是"是什么"
+         - 记跟其他项目的对比和关联
+         - 记坑和反直觉的地方
+      4. git commit && git push 到 kagura-agent/field-notes
+      汇报写了什么。
+    next: reflect
+
+  reflect:
+    task: |
+      反思本轮学习：
+      1. 学到了什么新东西？有没有值得写 memex 卡片的洞察？
+      2. 这个项目跟我已有的认知有什么关联？
+      3. 有没有可以用到自己项目里的模式或想法？
+      4. 下次继续学这个项目时该从哪里切入？
+      5. 学习列表需要调整吗？（加新的、移除不值得跟的）
+      执行：
+      - 有洞察 → 写 memex 卡片
+      - 有想法 → 更新 IDEAS.md
+      - 记录到 memory/YYYY-MM-DD.md
+    next: done
+
+  done:
+    task: |
+      本轮学习完成。汇报学到了什么。
+    terminal: true
