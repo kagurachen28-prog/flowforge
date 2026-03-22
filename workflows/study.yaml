@@ -1,9 +1,24 @@
 name: study
 description: 学习循环 — 观察 agent 生态动向，深入研究项目，校准我们的方向
 
-start: scout
+start: entry
 
 nodes:
+  entry:
+    task: |
+      选择本轮学习模式：
+      1. **侦察**：找新项目、新趋势、新方向
+      2. **跟进**：已关注项目有没有新动态
+      3. **应用**：把之前学到的东西用在自己身上（改工具、改流程、验证假设）
+      根据当前需要选择。如果最近几轮都在侦察，考虑切换到应用。
+    branches:
+      - condition: "侦察新东西"
+        next: scout
+      - condition: "跟进已关注项目"
+        next: followup
+      - condition: "应用已有知识"
+        next: apply
+
   scout:
     task: |
       侦察 agent 生态的动向：
@@ -23,6 +38,19 @@ nodes:
         next: followup
       - condition: "什么都没有"
         next: reflect
+
+  apply:
+    task: |
+      把之前学到的东西应用到自己身上：
+      1. 读 IDEAS.md 和最近的 memory，找出"学到了但没用上"的洞察
+      2. 选一个最值得应用的，具体执行：
+         - 改工具代码（gogetajob、FlowForge、nudge）
+         - 改工作流（study.yaml、workloop.yaml、reflect.yaml）
+         - 验证一个假设（EXP 系列）
+         - 把抽象洞察变成具体改动
+      3. 做完之后验证：改了之后有什么不同？
+      汇报应用了什么、效果如何。
+    next: note
 
   followup:
     task: |
