@@ -44,13 +44,16 @@ nodes:
   study:
     task: |
       深入研究选中的项目和 issue：
-      1. 先读 knowledge-base/projects/ 里对应的田野笔记（如果有的话），带着已有认知进入
+      1. **必须先读笔记**（不能跳过）：
+         a. cat ~/.openclaw/workspace/knowledge-base/projects/<项目名>.md — 田野笔记
+         b. cat ~/self-improving/projects/<项目名>.md 2>/dev/null — 执行改进笔记
+         c. 如果两个文件都不存在，说明这是第一次打这个 repo，要特别小心
       2. 读 CONTRIBUTING.md
       3. 理解相关代码模块的结构
       4. 确认 issue 的根因或需求
       5. 确认没有人在做同一个 issue
       6. 评估是否真的能在这个 repo 修（不是上游问题）
-      汇报你的理解和实现计划。
+      汇报你的理解和实现计划，包含从笔记中读到的关键信息（维护者偏好、CI 注意事项等）。
     branches:
       - condition: "issue 可做，计划明确"
         next: implement
@@ -101,7 +104,18 @@ nodes:
 
   reflect:
     task: |
-      用 Acontext distillation 结构化反思本轮打工：
+      反思本轮打工并**更新项目笔记**（不能跳过）：
+
+      **第一步：更新田野笔记**（必须做）
+      编辑 ~/.openclaw/workspace/knowledge-base/projects/<项目名>.md，追加：
+      - 这次 PR 的结果（merged/pending/closed + 原因）
+      - 维护者的 review 风格和偏好（新发现的）
+      - CI/lint/测试的注意事项
+      - 踩过的坑
+      - 下次打这个 repo 该注意什么
+      然后：cd ~/.openclaw/workspace/knowledge-base && git add -A && git commit -m "update: <项目名> field notes" && git push
+
+      **第二步：Acontext distillation 反思**
 
       **成功分析**（什么有效）：
       - goal: 这轮要做什么？
