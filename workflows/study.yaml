@@ -55,7 +55,7 @@ nodes:
   followup:
     task: |
       跟进已关注项目的新动态：
-      1. 读 field-notes/projects/ 目录，列出已有田野笔记的项目
+      1. 读 knowledge-base/projects/ 目录，列出已有田野笔记的项目
       2. 选 2-3 个最活跃的，检查最近变化：
          - 大的 PR 被 merge（架构重构、新 feature）
          - 重要的 issue 讨论（设计决策、方向争论）
@@ -71,6 +71,10 @@ nodes:
   deep_read:
     task: |
       深入阅读选中项目的代码和文档：
+      0. **先读已有知识**：
+         - knowledge-base/projects/项目名.md（如果有，带着上次的认知进入）
+         - `grep -rl "关键词" ~/.openclaw/workspace/knowledge-base/` 搜全库（cards + projects 都搜）
+         - 找到相关笔记和卡片就先读，带着已有认知进入
       1. 如果是新项目：clone，读 README、架构文档、核心模块
       2. 如果是已关注项目：读新变化的代码，理解设计决策
       3. 重点关注：
@@ -101,31 +105,51 @@ nodes:
   note:
     task: |
       把学到的东西写进田野笔记：
-      1. 新项目 → 在 field-notes/projects/ 创建新文件
+      1. 新项目 → 在 knowledge-base/projects/ 创建新文件
       2. 已有项目 → 追加新发现，不重复已有内容
       3. 写作要求：
+         - 用 [[双链]] 引用相关笔记和 memex 卡片
+         - 项目内：[[NemoClaw]] 引用 [[gitclaw]] 做对比
+         - 跨系统：[[mechanism-vs-evolution]] 引用 memex 概念
          - 记这个项目在 agent 生态中的位置
-         - 记跟我们方向的关联（验证了什么？推翻了什么？）
+         - 记跟我们方向的关联
          - 记架构洞察和反直觉的发现
-         - 记跟其他项目的对比
-      4. git commit && git push 到 kagura-agent/field-notes
+      4. git commit && git push 到 kagura-agent/knowledge-base
       汇报写了什么。
     next: reflect
 
   reflect:
     task: |
-      反思本轮学习：
-      1. 这轮学习对我们的方向判断有什么影响？
-         - 验证了我们的直觉？→ 记录证据
-         - 推翻了我们的假设？→ 记录并调整
-         - 发现了新的可能方向？→ 记录并评估
-      2. 有没有值得写 memex 卡片的洞察？
-      3. 下次学习应该往哪个方向深入？
-      4. 学习列表需要调整吗？
-      执行：
-      - 有洞察 → 写 memex 卡片
-      - 有想法 → 更新 IDEAS.md
-      - 记录到 memory/YYYY-MM-DD.md
+      用 Acontext distillation 结构化反思本轮学习：
+
+      **成功分析**（学到了什么）：
+      - goal: 这轮学习要解决什么问题？
+      - approach: 什么方法有效？
+      - key_decisions: 哪些选择起了作用？
+      - pattern: 可复用的模式是什么？
+      - applies_when: 具体适用条件（项目、场景、前提）
+
+      **失败分析**（哪里卡了）：
+      - failure_point: 卡在哪？
+      - flawed_reasoning: 错误假设是什么？
+      - what_should_have_been_done: 正确做法
+      - prevention_principle: 怎么防
+
+      **沉淀分流**（三层，关键！）：
+      - **项目级知识**（架构、API、维护者风格）→ knowledge-base/projects/项目名.md
+      - **跨项目/领域级知识**（理论、框架、跨项目对比、研究洞察）→ memex 卡片（带双向链接）
+        写完后：cd ~/.openclaw/workspace/knowledge-base && git add -A && git commit -m "card: 卡片名" && git push
+        例：自进化四层模型、mechanism-vs-evolution、agent 信任问题的生态位
+      - **学习方法 pattern**（跨领域通用的研究方式）→ beliefs-candidates.md
+        例：读代码前先读 test、对比两个项目比单独看一个更有效
+      不确定的先放 knowledge-base。跨项目洞察必须写 memex——这是知识网络的核心节点。
+
+      **方向影响**：
+      - 验证了直觉？→ 记录证据
+      - 推翻了假设？→ 记录并调整
+      - 新的可能方向？→ 记录并评估
+
+      记录到 memory/YYYY-MM-DD.md。
     next: done
 
   done:

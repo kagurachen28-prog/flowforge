@@ -44,7 +44,7 @@ nodes:
   study:
     task: |
       深入研究选中的项目和 issue：
-      1. 先读 field-notes/projects/ 里对应的田野笔记（如果有的话），带着已有认知进入
+      1. 先读 knowledge-base/projects/ 里对应的田野笔记（如果有的话），带着已有认知进入
       2. 读 CONTRIBUTING.md
       3. 理解相关代码模块的结构
       4. 确认 issue 的根因或需求
@@ -60,10 +60,19 @@ nodes:
   implement:
     task: |
       按照 study 阶段的计划实现：
-      1. 写代码
-      2. 确保代码风格符合项目规范
-      3. 跑所有测试，确保通过
-      4. 提交，commit message 清晰
+      0. **分工决策**：
+         - 代码实现用 acpx exec 同步调 Claude Code：
+           `cd <repo> && /home/test/repo/openclaw/extensions/acpx/node_modules/.bin/acpx --approve-all claude exec "task"`
+         - task 必须包含 Claude Code 看不到的上下文：
+           a. 相关的 issue 讨论和 reviewer 反馈
+           b. 类似 bug 的已有修复（可作为参考模式）
+           c. 项目架构和代码位置的关键信息
+           d. maintainer 偏好（从 knowledge-base 读）
+         - 一行级别的简单修复可以自己做，不需要调 Claude Code
+      1. acpx exec 是同步的 — 等它跑完结果直接在 stdout 里
+      2. Claude Code 完成后：检查他的 commit，review 改动是否正确
+      3. 确保代码风格符合项目规范
+      4. 跑所有测试，确保通过
       汇报实现结果和测试状态。
     next: submit
 
@@ -92,21 +101,37 @@ nodes:
 
   reflect:
     task: |
-      停下来反思本轮工作：
-      1. 过程中有没有卡住的地方？为什么卡？怎么避免？
-      2. 使用的工具（gogetajob、gh、flowforge 等）有没有问题？
-         - 有 bug → 去工具 repo 提 issue 或自己修
-         - 不好用 → 记下来，考虑改进
-      3. 这个 workflow 本身需要调整吗？哪个节点可以优化？
-      4. 有没有重复犯以前的错误？检查 memory 里记录的教训
-      5. 下一轮可以怎么做得更好？
-      6. **更新田野笔记**（field-notes/projects/对应项目.md）：
-         - 新项目：创建笔记文件，记录架构、模式、第一印象
-         - 已有项目：追加新发现，不重复已有内容
-         - 重点记：架构洞察、坑、设计模式、代码质量、维护者风格
-         - 不记 PR 编号和流水账，记学到了什么
-         - git commit && git push 到 kagura-agent/field-notes
-      把反思结果记到 memory/YYYY-MM-DD.md 里。
+      用 Acontext distillation 结构化反思本轮打工：
+
+      **成功分析**（什么有效）：
+      - goal: 这轮要做什么？
+      - approach: 什么方法有效？
+      - key_decisions: 哪些选择起了作用？
+      - pattern: 可复用的模式（选题策略、代码方法、沟通方式）
+      - applies_when: 具体适用条件（哪个项目、什么类型的 issue）
+
+      **失败分析**（哪里卡了）：
+      - failure_point: 卡在哪？
+      - flawed_reasoning: 错误假设
+      - what_should_have_been_done: 正确做法
+      - prevention_principle: 怎么防
+
+      **沉淀分流**（三层，关键！所有笔记用 [[双链]] 互引）：
+      - **项目级 pattern**（跟具体 repo/maintainer/CI 相关）→ knowledge-base/projects/项目名.md
+        用 [[双链]] 引用相关项目笔记和概念卡片
+        例：NemoClaw CI 慢要先本地 lint、gitclaw maintainer 偏好小 PR
+      - **跨项目洞察**（多个项目对比出的规律、生态观察）→ memex 卡片
+        写完后：cd ~/.openclaw/workspace/knowledge-base && git add -A && git commit -m "card: 卡片名" && git push
+        例：TypeScript 项目普遍用 X 测试框架、大 repo 的 review 流程有 Y 共性
+      - **行为级 pattern**（跨项目通用的工作方式）→ beliefs-candidates.md
+        例：选 issue 前查竞争 PR、被 review 先理解再改
+      不确定的先放 knowledge-base，重复出现再考虑升级。
+
+      **工具检查**：
+      - gogetajob、gh、flowforge 等有没有问题？
+      - 有 bug → 去工具 repo 提 issue 或自己修
+
+      把反思结果记到 memory/YYYY-MM-DD.md。
     next: done
 
   done:

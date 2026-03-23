@@ -22,14 +22,16 @@ export function define(yamlContent: string) {
 export function start(workflowName: string) {
   const wf = loadWorkflow(workflowName);
   const existing = db.getActiveInstance(workflowName);
+  let previousId: number | null = null;
   if (existing) {
-    throw new Error(
-      `Workflow '${workflowName}' already has an active instance (id=${existing.id}). Use 'flowforge reset' to restart.`
-    );
+    // Auto-close stale active instance instead of throwing
+    db.closeHistory(existing.id, existing.current_node, null);
+    db.setInstanceStatus(existing.id, "done");
+    previousId = existing.id;
   }
   const id = db.createInstance(workflowName, wf.start);
   db.addHistory(id, wf.start);
-  return { id, node: wf.start };
+  return { id, node: wf.start, previouslyClosed: previousId };
 }
 
 export function status(workflowName?: string) {

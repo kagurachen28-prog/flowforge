@@ -1,0 +1,63 @@
+name: tool-review
+description: "单工具深度 review — 启动时指定工具名"
+start: check_usage
+
+nodes:
+  check_usage:
+    task: |
+      Review 工具：{{tool}}
+      问题 1/5：还在用吗？
+      - 最近一次实际使用是什么时候？
+      - 查数据记录（DB、日志、git log），不估算
+      - 标注 [已验证: 怎么查的]
+    branches:
+      - condition: "回答完了"
+        next: check_quality
+
+  check_quality:
+    task: |
+      Review 工具：{{tool}}
+      问题 2/5：好用吗？
+      - 最近用的时候有没有卡的地方、报错、不顺手的？
+      - 有没有想要但缺失的功能？
+      - 标注 [已验证: 怎么查的]
+    branches:
+      - condition: "回答完了"
+        next: check_need
+
+  check_need:
+    task: |
+      Review 工具：{{tool}}
+      问题 3/5：还需要吗？
+      - 它服务的需求还存在吗？
+      - 需求变了它要不要跟着变？
+      - 该淘汰了吗？
+    branches:
+      - condition: "回答完了"
+        next: check_upstream
+
+  check_upstream:
+    task: |
+      Review 工具：{{tool}}
+      问题 4/5：上游更新了吗？
+      - 依赖的外部项目有新版本吗？
+      - 要升级吗？有没有 breaking changes？
+      - 标注 [已验证: 怎么查的]
+    branches:
+      - condition: "回答完了"
+        next: check_coverage
+
+  check_coverage:
+    task: |
+      Review 工具：{{tool}}
+      问题 5/5：服务到位吗？
+      - 它应该服务哪些层（DNA/战略/行为）？
+      - 每一层的需求都覆盖到了吗？有缺口吗？
+      - 跟其他工具有重叠或冲突吗？
+    branches:
+      - condition: "回答完了"
+        next: done
+
+  done:
+    task: "{{tool}} review 完成。"
+    terminal: true
