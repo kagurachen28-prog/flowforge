@@ -1,5 +1,5 @@
 {
-  "name": "flowforge",
+  "name": "@kagura-agent/flowforge",
   "version": "0.1.0",
   "description": "Enforced workflow engine for AI agents",
   "type": "module",
