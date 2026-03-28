@@ -155,6 +155,7 @@ nodes:
 - **Never skip nodes.** Execute every node's task before advancing.
 - **Always check status.** Don't assume position — run `flowforge status`.
 - **One task at a time.** Complete current node before looking ahead.
+- **Post-run.** When a workflow reaches a terminal node, record what was done and the outcome. If your workspace has a memory or log system, write results there.
 - **State persists.** Workflows survive session restarts.
 - **Use reset sparingly.** Only reset if workflow is stuck or user requests it.
 
