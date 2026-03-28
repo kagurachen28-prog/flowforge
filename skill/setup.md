@@ -4,7 +4,13 @@ This guide walks through installing and configuring FlowForge in your workspace.
 
 ## Step 1: Install FlowForge CLI
 
-Check if already installed:
+FlowForge has two parts:
+- **This skill** (what you just installed from ClawHub) — teaches your agent when and how to use FlowForge
+- **The FlowForge CLI** (a separate Node.js tool) — the workflow engine that tracks state, enforces step order, and persists progress in a local SQLite database
+
+The skill talks to the CLI. You need both.
+
+Check if the CLI is already installed:
 
 ```bash
 flowforge --version
