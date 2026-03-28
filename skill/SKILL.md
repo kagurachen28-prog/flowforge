@@ -37,7 +37,7 @@ Don't use for simple one-off tasks or quick questions.
 |--------|----------|
 | *(add your mappings here as you use FlowForge)* | |
 
-**Self-updating rule:** When you match an intent to a workflow via `flowforge list` and it works well, add that mapping to the table above. Over time this table becomes your personalized trigger map — no need to look up workflows you use regularly.
+**Self-updating rule:** When you match an intent to a workflow via `flowforge list` and it works well, add that mapping to the table above. Then update the `description` field in the YAML frontmatter at the top of this file to include the new trigger phrase — this is how OpenClaw knows when to activate this skill.
 
 ## Core Workflow
 
