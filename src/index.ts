@@ -1,9 +1,41 @@
 import { Command } from "commander";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync, existsSync } from "fs";
+import { join, resolve } from "path";
 import * as engine from "./engine.js";
 
+// Auto-load workflows from workflows/ directory
+function autoLoadWorkflows() {
+  const workflowDirs = [
+    join(process.cwd(), "workflows"),
+    join(process.env.HOME || "~", ".flowforge", "workflows")
+  ];
+
+  for (const dir of workflowDirs) {
+    if (!existsSync(dir)) continue;
+
+    try {
+      const files = readdirSync(dir);
+      const yamlFiles = files.filter(f => f.endsWith(".yaml") || f.endsWith(".yml"));
+
+      for (const file of yamlFiles) {
+        try {
+          const content = readFileSync(join(dir, file), "utf-8");
+          engine.define(content);
+        } catch (e) {
+          // Silently skip invalid workflow files
+        }
+      }
+    } catch (e) {
+      // Directory not accessible, skip
+    }
+  }
+}
+
+// Auto-load workflows on CLI startup
+autoLoadWorkflows();
+
 const program = new Command();
-program.name("flowforge").description("Personal workflow engine").version("0.2.0");
+program.name("flowforge").description("Personal workflow engine").version("1.0.0");
 
 program
   .command("define <yaml>")

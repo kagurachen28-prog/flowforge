@@ -1,14 +1,34 @@
 {
-  "name": "@kagura-agent/flowforge",
-  "version": "0.1.0",
-  "description": "Enforced workflow engine for AI agents",
+  "name": "flowforge-workflow",
+  "version": "1.0.0",
+  "description": "Enforced workflow engine for AI agents — YAML-defined, CLI-driven state machine that prevents agents from skipping steps",
   "type": "module",
   "bin": {
     "flowforge": "./bin/flowforge.js"
   },
+  "files": [
+    "bin/",
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/flowforge.js --external:better-sqlite3 --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\""
   },
+  "keywords": [
+    "agent",
+    "workflow",
+    "ai",
+    "openclaw",
+    "state-machine",
+    "yaml"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/flowforge.git"
+  },
+  "license": "MIT",
+  "author": "FlowForge Contributors",
   "dependencies": {
     "better-sqlite3": "^11.0.0",
     "commander": "^12.0.0",

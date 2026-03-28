@@ -1,85 +1,226 @@
 ---
 name: flowforge
-description: "Run structured multi-step workflows via FlowForge engine. Use when: (1) starting a work loop or contribution cycle (打工, contribute, work on issues, PR), (2) studying a project or topic (学习, study, research), (3) reflecting on completed work (反思, reflect, review), (4) any multi-step task that has a defined FlowForge workflow. Triggers on: 打工, 干活, work loop, start working, contribute, study, 学习, reflect, 反思, review code, audit. NOT for: simple one-off tasks, quick questions, or tasks without a matching workflow."
+description: "Run structured multi-step workflows via FlowForge engine. Use when user requests step-by-step execution, structured workflows, or when a task needs enforced ordering (e.g., 'follow the workflow', 'use flowforge', 'step by step process'). Helps AI agents execute multi-step tasks without skipping critical steps."
 ---
 
 # FlowForge Workflow Runner
 
-Run multi-step workflows defined in FlowForge YAML files. FlowForge is the execution engine (state machine + persistence); this skill is the trigger and coordination layer.
+Execute multi-step workflows defined in YAML files using the FlowForge state machine engine.
 
 ## Prerequisites
 
-FlowForge CLI must be installed. If `flowforge list` fails, read [references/setup.md](references/setup.md) and follow setup instructions.
+FlowForge CLI must be installed. Check with:
+
+```bash
+flowforge --version
+```
+
+If not installed, read [setup.md](setup.md) for installation instructions.
+
+## When to Use FlowForge
+
+Use FlowForge when:
+- User explicitly requests "workflow", "step by step", or "use flowforge"
+- Task has multiple sequential steps that shouldn't be skipped
+- User wants enforced execution order (e.g., always test before submit)
+- Task involves state that needs to persist across sessions
+
+Don't use for simple one-off tasks or quick questions.
 
 ## Core Workflow
 
-### 1. Pick the Workflow
+### 1. List Available Workflows
 
-Run `flowforge list` to see available workflows. Match user intent to a workflow name:
+```bash
+flowforge list
+```
 
-| Intent | Workflow |
-|--------|----------|
-| 打工 / contribute / work on issues | `workloop` |
-| 学习 / study / research | `study` |
-| 反思 / reflect | `reflect` |
-| 代码审查 / review | `review` |
-| 审计 / audit | `daily-audit` |
+Common workflows users might have:
+- Code contribution/PR workflows
+- Learning/research processes
+- Code review procedures
+- Project setup checklists
 
-If no workflow matches, say so — do not run without a workflow.
+If no workflow matches user's intent, help them create one (see [yaml-format.md](references/yaml-format.md)).
 
 ### 2. Start or Resume
 
 ```bash
-# Check for active instance first
+# Check for active instances
 flowforge active
 
-# If active instance exists for the matching workflow → resume
+# If active instance exists → resume
 flowforge status
 
 # If no active instance → start new
-flowforge start <workflow>
+flowforge start <workflow-name>
 ```
 
 ### 3. Execute Current Node
 
-After `flowforge status`, you get the current node's `task` (natural language) and available `branches`.
+After `flowforge status`, you'll see:
+- Current node name
+- Task (natural language instruction)
+- Next node or branches
 
-**Execute the task as described.** The task text is your instruction — follow it, do not skip steps.
+**Execute the task as described.** The task field tells you exactly what to do.
 
-For implementation-heavy nodes (writing code, fixing bugs): use ACP to delegate to Claude Code:
-```
-sessions_spawn(runtime: "acp", agentId: "claude", mode: "run", task: "<context + task>")
-```
+For complex implementation tasks: delegate to appropriate tools or sub-agents.
+For simple tasks: execute directly.
 
-For lightweight nodes (checking status, reading files, making decisions): execute directly.
+### 4. Advance to Next Node
 
-### 4. Advance
-
-After completing the node's task, evaluate which branch applies and advance:
+After completing the task:
 
 ```bash
-# Linear (no branches)
+# Linear flow (no branches)
 flowforge next
 
-# Branched — pick the matching condition
-flowforge next --branch 1   # first condition matched
-flowforge next --branch 2   # second condition matched
+# Branching flow (multiple paths)
+flowforge next --branch 1   # first condition
+flowforge next --branch 2   # second condition
 ```
 
-### 5. Repeat
+### 5. Repeat Until Complete
 
-`flowforge status` → execute task → `flowforge next` → repeat until terminal node or session limit.
+Continue the cycle:
+1. `flowforge status` — see current task
+2. Execute the task
+3. `flowforge next` — advance
+4. Repeat until terminal node
 
-### 6. Post-Run
+### 6. View History
 
-When the workflow reaches a terminal node or you need to pause:
-- Record results in `memory/YYYY-MM-DD.md`
-- If the workflow defines a reflect step, do not skip it
+```bash
+flowforge log
+```
+
+Shows all nodes visited with timestamps.
+
+## Creating New Workflows
+
+If user needs a workflow that doesn't exist:
+
+1. Ask about their process steps
+2. Draft a YAML file (see [yaml-format.md](references/yaml-format.md))
+3. Save to `workflows/` directory or workspace
+4. Register with `flowforge define workflow.yaml`
+
+See [references/examples/](references/examples/) for templates.
+
+## YAML Format Quick Reference
+
+```yaml
+name: workflow-name
+description: What this workflow does
+start: first-node
+
+nodes:
+  first-node:
+    task: Description of what to do
+    next: second-node
+
+  second-node:
+    task: Another task
+    branches:
+      - condition: success
+        next: final-node
+      - condition: failure
+        next: first-node
+
+  final-node:
+    task: Wrap up and report
+    terminal: true
+```
+
+### Node Fields
+
+- `task`: Natural language instruction (required)
+- `next`: Single next node for linear flow
+- `branches`: Array of `{condition, next}` for branching
+- `terminal`: Set to `true` for end nodes
 
 ## Rules
 
-- **Never skip nodes.** The workflow order exists for a reason. If a node feels unnecessary, that is the moment it is most needed.
-- **Never run workflows from memory.** Always `flowforge status` to get the actual current node. Do not assume you know where you are.
-- **Run to completion in one turn.** Do not reply to the user mid-workflow. Execute all nodes first, then report results at the end. If a node requires spawning a sub-agent, wait for it to finish, then advance — do not reply and pause.
-- **State persists across sessions.** If a session ends mid-workflow, the next session picks up from `flowforge status`.
-- **One active instance per workflow.** Use `flowforge reset` if stuck.
+- **Never skip nodes.** Execute every node's task before advancing.
+- **Always check status.** Don't assume position — run `flowforge status`.
+- **One task at a time.** Complete current node before looking ahead.
+- **State persists.** Workflows survive session restarts.
+- **Use reset sparingly.** Only reset if workflow is stuck or user requests it.
+
+## Advanced Usage
+
+### Multiple Workflows
+
+If user has multiple active workflows:
+```bash
+flowforge active  # list all
+flowforge status  # shows current default
+```
+
+### Reset Current Workflow
+
+```bash
+flowforge reset
+```
+
+Creates new instance from start node. Old history is preserved.
+
+### Workflow Discovery
+
+FlowForge auto-loads YAML files from:
+- `./workflows/` in current directory
+- `~/.flowforge/workflows/` in home directory
+
+Users can drop workflow files into these directories and they're automatically available — no need to run `flowforge define`.
+
+## Examples
+
+### Example 1: Code Contribution
+
+User: "Help me contribute to this project"
+
+1. Check if contribution workflow exists: `flowforge list`
+2. Start: `flowforge start code-contribution`
+3. Execute each node:
+   - study → read project structure
+   - implement → write code
+   - test → run tests
+   - submit → create PR
+   - verify → address feedback
+
+### Example 2: Learning Workflow
+
+User: "I want to study React hooks step by step"
+
+1. Check for study workflow: `flowforge list`
+2. If exists: `flowforge start study`
+3. If not: help create YAML with nodes like:
+   - discover → find resources
+   - deep-read → read documentation
+   - practice → write examples
+   - reflect → note key concepts
+
+### Example 3: Resume Interrupted Work
+
+User returns after session ended mid-workflow:
+
+1. `flowforge active` → shows interrupted workflow
+2. `flowforge status` → shows current node
+3. Continue from there
+
+## Troubleshooting
+
+**"No active instance"**: Run `flowforge start <workflow>`
+
+**"Workflow not found"**: Run `flowforge list` to see available workflows
+
+**Wrong node/stuck**: Use `flowforge reset` to restart workflow
+
+**Need to modify workflow**: Edit YAML file, run `flowforge define workflow.yaml` to update
+
+## See Also
+
+- [setup.md](setup.md) — Installation and configuration
+- [references/yaml-format.md](references/yaml-format.md) — Complete YAML specification
+- [references/examples/](references/examples/) — Template workflows
