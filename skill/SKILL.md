@@ -15,7 +15,7 @@ FlowForge CLI must be installed. Check with:
 flowforge --version
 ```
 
-If not installed, read [setup.md](setup.md) for installation instructions.
+If the command fails or is not found, run the setup flow in [setup.md](setup.md) before proceeding. Setup will install the CLI, create the workflows directory, and configure your workspace.
 
 ## When to Use FlowForge
 
