@@ -88,11 +88,16 @@ nodes:
            b. 类似 bug 的已有修复（可作为参考模式）
            c. 项目架构和代码位置的关键信息
            d. maintainer 偏好（从 knowledge-base 读）
+         - **task 末尾必须加验证指令**：
+           "Before committing: 1) grep for all test files that import/mock the interfaces you changed, update their mocks. 2) Run the project's test/lint commands. 3) git diff --stat to confirm no files were missed."
          - 一行级别的简单修复可以自己做，不需要调 Claude Code
       1. acpx exec 是同步的 — 等它跑完结果直接在 stdout 里
       2. Claude Code 完成后：检查他的 commit，review 改动是否正确
       3. 确保代码风格符合项目规范
-      4. 跑所有测试，确保通过
+      4. **push 前自检**（不能跳过）：
+         a. `git diff --stat` 看全局影响
+         b. 改了接口/类型？→ grep 所有 import 这个接口的文件，确认 mock/stub 同步了
+         c. 项目有测试命令？→ 跑。没有本地环境？→ 至少 grep 验证 mock 完整性
       汇报实现结果和测试状态。
     next: submit
 
