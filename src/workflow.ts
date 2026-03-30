@@ -7,6 +7,7 @@ export interface Branch {
 
 export interface WorkflowNode {
   task: string;
+  executor?: 'inline' | 'subagent';  // default: 'inline'
   next?: string;
   branches?: Branch[];
   terminal?: boolean;

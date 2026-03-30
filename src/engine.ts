@@ -1,5 +1,15 @@
-import { parseWorkflow, type Workflow, type WorkflowNode } from "./workflow.js";
+import { parseWorkflow, type Workflow, type WorkflowNode, type Branch } from "./workflow.js";
 import * as db from "./db.js";
+
+export interface FlowAction {
+  type: 'spawn' | 'prompt' | 'complete';
+  instanceId: number;
+  workflowName: string;
+  node: string;
+  task: string;
+  branches?: Branch[];
+  previousResult?: string;
+}
 
 function loadWorkflow(name: string): Workflow {
   const row = db.getWorkflow(name);
@@ -140,3 +150,76 @@ export function reset(workflowName?: string) {
   db.addHistory(id, wf.start);
   return { id, node: wf.start };
 }
+
+export function getAction(workflowName?: string, previousResult?: string): FlowAction {
+  const inst = requireActiveInstance(workflowName);
+  const wf = loadWorkflow(inst.workflow_name);
+  const node = wf.nodes[inst.current_node];
+  if (!node) throw new Error(`Node '${inst.current_node}' not found`);
+
+  let task = node.task;
+  if (previousResult) {
+    task = `${task}\n\nPrevious result:\n${previousResult}`;
+  }
+
+  if (node.terminal) {
+    return {
+      type: 'complete',
+      instanceId: inst.id,
+      workflowName: inst.workflow_name,
+      node: inst.current_node,
+      task,
+      previousResult,
+    };
+  }
+
+  if (node.executor === 'subagent') {
+    return {
+      type: 'spawn',
+      instanceId: inst.id,
+      workflowName: inst.workflow_name,
+      node: inst.current_node,
+      task,
+      branches: node.branches,
+      previousResult,
+    };
+  }
+
+  return {
+    type: 'prompt',
+    instanceId: inst.id,
+    workflowName: inst.workflow_name,
+    node: inst.current_node,
+    task,
+    branches: node.branches,
+    previousResult,
+  };
+}
+
+export function advanceWithResult(result: string, workflowName?: string): FlowAction {
+  // Parse result to extract branch choice (looks for 'Branch: N' or 'branch N' pattern)
+  let branch: number | undefined;
+  const branchMatch = result.match(/\bbranch:?\s*(\d+)\b/i);
+  if (branchMatch) {
+    branch = parseInt(branchMatch[1], 10);
+  }
+
+  // Advance to next node
+  const nextResult = next(branch, workflowName);
+
+  if (nextResult.terminal) {
+    const inst = db.getActiveInstance(workflowName);
+    if (!inst) throw new Error("No active instance found");
+    return {
+      type: 'complete',
+      instanceId: inst.id,
+      workflowName: inst.workflow_name,
+      node: "(end)",
+      task: "",
+    };
+  }
+
+  // Get the next action
+  return getAction(workflowName, result);
+}
+

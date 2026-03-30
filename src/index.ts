@@ -172,6 +172,49 @@ program
     }
   });
 
+program
+  .command("run <workflow>")
+  .description("Start workflow and output next action as JSON")
+  .action((workflow) => {
+    try {
+      // Start or resume workflow
+      try {
+        engine.start(workflow);
+      } catch (e: any) {
+        // If already active, that's OK — we'll get the current action
+      }
+
+      const action = engine.getAction(workflow);
+      console.log(JSON.stringify({ action }, null, 2));
+    } catch (e: any) {
+      console.error(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("advance")
+  .description("Advance workflow with result and output next action as JSON")
+  .option("--result <text>", "Result text from previous step")
+  .action((opts) => {
+    try {
+      let result = opts.result;
+
+      // If no --result flag, read from stdin
+      if (!result) {
+        const fs = require("fs");
+        result = fs.readFileSync(0, "utf-8").trim();
+      }
+
+      const action = engine.advanceWithResult(result);
+      console.log(JSON.stringify({ action }, null, 2));
+    } catch (e: any) {
+      console.error(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
+
 function printStatus() {
   const s = engine.status();
   console.log(`\n📍 Current: ${s.currentNode}`);
