@@ -47,7 +47,7 @@ nodes:
 
       - 维护者 merge 统计很重要（内部优先的 repo 堆外部 PR 没意义）
 
-      - 选 issue 前 git log 确认相关代码是否还存在（可能已被删/修）
+      - 选 issue 前 git log 确认相关代码是否还存在（可能已被删/修）\n      - **检查 repo 活跃度**：最后 commit/merge/maintainer 回复是什么时候？超过 2 周无活动 → 不提新 PR（教训：claude-hud 3/23 后无活动，3 个 PR 全 stale）
 
       汇报选中的 issue 和理由。
 
@@ -63,10 +63,9 @@ nodes:
       \   b. 如果文件不存在，说明这是第一次打这个 repo，要特别小心\n1b. **验证本地测试环境**（第一次打新 repo 时必做，之后跳过）：\n   a. 这个 repo 用什么语言？Go/Python/TS/Java/Rust？\n\
       \   b. 本地有对应的运行时吗？`go version` / `python --version` / `node --version`\n   c. 能装依赖吗？`go mod download` / `pip install\
       \ -e \".[dev]\"` / `npm install`\n   d. 能跑测试吗？找到测试命令（Makefile/pyproject.toml/package.json）跑一遍\n   e. **如果环境配不通 → 记到田野笔记里，写明卡在哪。但不要因此放弃这个\
-      \ repo**\n   f. 环境配好后，在田野笔记里记录测试命令，下次直接用\n2. **搜跨项目知识**（不能跳过）：\n   a. 从 issue 标题/描述提取 2-3 个关键词\n   b. cd ~/.openclaw/workspace/knowledge-base\
-      \ && MEMEX_HOME=. node ~/repos/forks/memex/dist/cli.js search --all \"<关键词>\"\n   c. 搜到相关卡片 → 读一下，看有没有已有洞察能指导实现\n  \
+      \ repo**\n   f. 环境配好后，在田野笔记里记录测试命令，下次直接用\n2. **搜跨项目知识**（不能跳过）：\n   a. 从 issue 标题/描述提取 2-3 个关键词\n   b. cd ~/.openclaw/workspace/knowledge-base && MEMEX_HOME=. node ~/repos/forks/memex/dist/cli.js search --all --semantic \"<关键词>\"\n   c. 搜到相关卡片 → 读一下，看有没有已有洞察能指导实现\n  \
       \ d. 没搜到 → 继续，不纠结\n3. **学习维护者**（从田野笔记读，不是现场查）：\n   a. 田野笔记里应该已有维护者模式（reflect 时沉淀的）\n   b. 如果笔记里没有，说明这是第一次打这个 repo——此时才去查最近\
-      \ merged PR\n   c. 注意：他们怎么写测试？怎么处理边界？PR 描述什么格式？\n3. 读 CONTRIBUTING.md\n4. 理解相关代码模块的结构\n5. 确认 issue 的根因或需求\n6. **查近期修复**：`git\
+      \ merged PR\n   c. 注意：他们怎么写测试？怎么处理边界？PR 描述什么格式？\n3. 读 CONTRIBUTING.md，**重点关注**：\n   a. PR 流程要求（changeset？CLA？签名？）（教训：stagehand 没加 changeset 被关）\n   b. 代码风格/lint 要求\n   c. 测试要求\n4. 涉及 RFC/标准规范的修改？→ 先读原始 RFC 文档再写代码，不凭经验猜 API（教训：Acontext #509 RFC 5987 编码用错 API）\n5. 理解相关代码模块的结构\n5. 确认 issue 的根因或需求\n6. **查近期修复**：`git\
       \ log --oneline -20 -- <相关文件>` 看有没有近期 commit 已经修了这个 issue\n   - 如果发现已修但 issue 未关闭，在 issue 下评论指出，然后退回 find_work\n7. 确认没有人在做同一个\
       \ issue（检查 issue 下的关联 PR 和评论）\n8. 评估是否真的能在这个 repo 修（不是上游问题）\n9. **提 PR 前 5 问**（全过才提）：\n   a. 这个 PR 只解决一个问题吗？\n   b.\
       \ 上游没有已有修复或竞争 PR 吗？\n   c. 我读了 CONTRIBUTING.md 和最近的 merge 模式吗？\n   d. 我能验证这个修复吗？\n   e. 这个 repo 我的 open PR ≤ 3 吗？（超过就停，等已有\
