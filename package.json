@@ -30,7 +30,7 @@
   "license": "MIT",
   "author": "FlowForge Contributors",
   "dependencies": {
-    "better-sqlite3": "^11.0.0",
+    "better-sqlite3": "^11.10.0",
     "commander": "^12.0.0",
     "js-yaml": "^4.1.0"
   },

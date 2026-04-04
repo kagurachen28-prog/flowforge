@@ -74,7 +74,7 @@ nodes:
       ```
       ## Eval Baseline
       - PR merge rate: X% (N merged / M total) — 来源: gogetajob stats [已验证]
-      - beliefs-candidates total: N 条 [已验证]
+      - beliefs-candidates total: N 条（Active 区 X 条 + Archive 区 Y 条，分别计数）[已验证]
       - Repeat gradients: N 条（beliefs-candidates.md 中标了 repeated 的）[已验证]
       - DNA graduations: N 次（累计从 candidates 升级到 DNA 的）[已验证]
       ```
