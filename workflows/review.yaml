@@ -88,7 +88,15 @@ nodes:
       ```
       ## Eval Baseline
       - PR merge rate: X% (N merged / M total) — 来源: gogetajob stats [已验证]
-      - beliefs-candidates total: N 条（Active 区 X 条 + Archive 区 Y 条，分别计数）[已验证]
+      - beliefs-candidates total: N 条 — ⚠️ 必须用 awk 分段计数，禁止整文件 grep -c：
+        ```bash
+        awk '/^## /{section=$0} /^- [0-9]{4}-/{count[section]++; total++} END{for(s in count) print s, count[s]; print "TOTAL:", total}' beliefs-candidates.md
+        ```
+        报告格式：「N 条（§SectionA X 条 + §SectionB Y 条 + ...）」
+      - knowledge-base: cards N / projects N — ⚠️ 必须当场跑 `ls | wc -l`，不沿用旧数据：
+        ```bash
+        echo "cards: $(ls ~/.openclaw/workspace/knowledge-base/cards/ | wc -l), projects: $(ls ~/.openclaw/workspace/knowledge-base/projects/ | wc -l)"
+        ```
       - Repeat gradients: N 条（beliefs-candidates.md 中标了 repeated 的）[已验证]
       - DNA graduations: N 次（累计从 candidates 升级到 DNA 的）[已验证]
       ```
