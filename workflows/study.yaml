@@ -55,7 +55,7 @@ nodes:
   followup:
     task: |
       跟进已关注项目的新动态：
-      1. 读 knowledge-base/projects/ 目录，列出已有田野笔记的项目
+      1. 读 wiki/projects/ 目录，列出已有田野笔记的项目
       2. 选 2-3 个最活跃的，检查最近变化：
          - 大的 PR 被 merge（架构重构、新 feature）
          - 重要的 issue 讨论（设计决策、方向争论）
@@ -72,8 +72,8 @@ nodes:
     task: |
       深入阅读选中项目的代码和文档：
       0. **先读已有知识**：
-         - knowledge-base/projects/项目名.md（如果有，带着上次的认知进入）
-         - `grep -rl "关键词" ~/.openclaw/workspace/knowledge-base/` 搜全库（cards + projects 都搜）
+         - wiki/projects/项目名.md（如果有，带着上次的认知进入）
+         - `grep -rl "关键词" ~/.openclaw/workspace/wiki/` 搜全库（cards + projects 都搜）
          - 找到相关笔记和卡片就先读，带着已有认知进入
       1. 如果是新项目：clone，读 README、架构文档、核心模块
       2. 如果是已关注项目：读新变化的代码，理解设计决策
@@ -105,7 +105,7 @@ nodes:
   note:
     task: |
       把学到的东西写进田野笔记：
-      1. 新项目 → 在 knowledge-base/projects/ 创建新文件
+      1. 新项目 → 在 wiki/projects/ 创建新文件
       2. 已有项目 → 追加新发现，不重复已有内容
       3. 写作要求：
          - 用 [[双链]] 引用相关笔记和 memex 卡片
@@ -114,7 +114,7 @@ nodes:
          - 记这个项目在 agent 生态中的位置
          - 记跟我们方向的关联
          - 记架构洞察和反直觉的发现
-      4. git commit && git push 到 kagura-agent/knowledge-base
+      4. git commit && git push 到 kagura-agent/wiki
       汇报写了什么。
     next: reflect
 
@@ -136,13 +136,13 @@ nodes:
       - prevention_principle: 怎么防
 
       **沉淀分流**（三层，关键！）：
-      - **项目级知识**（架构、API、维护者风格）→ knowledge-base/projects/项目名.md
+      - **项目级知识**（架构、API、维护者风格）→ wiki/projects/项目名.md
       - **跨项目/领域级知识**（理论、框架、跨项目对比、研究洞察）→ memex 卡片（带双向链接）
-        写完后：cd ~/.openclaw/workspace/knowledge-base && git add -A && git commit -m "card: 卡片名" && git push
+        写完后：cd ~/.openclaw/workspace/wiki && git add -A && git commit -m "card: 卡片名" && git push
         例：自进化四层模型、mechanism-vs-evolution、agent 信任问题的生态位
       - **学习方法 pattern**（跨领域通用的研究方式）→ beliefs-candidates.md
         例：读代码前先读 test、对比两个项目比单独看一个更有效
-      不确定的先放 knowledge-base。跨项目洞察必须写 memex——这是知识网络的核心节点。
+      不确定的先放 wiki。跨项目洞察必须写 memex——这是知识网络的核心节点。
 
       **方向影响**：
       - 验证了直觉？→ 记录证据

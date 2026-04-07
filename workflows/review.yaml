@@ -47,8 +47,8 @@ nodes:
       2. **去旧**：有没有已被覆盖的旧数据？（如旧的打工成果统计、已退役的工具描述过长）
          - 删除旧版本，只留最新
          - 已暂停/退役的项目压缩到 1-2 行
-      3. **归档**：有没有细节过多、该移到 knowledge-base 的内容？
-         - 项目的技术细节（功能列表、PR 历史）→ knowledge-base/projects/
+      3. **归档**：有没有细节过多、该移到 wiki 的内容？
+         - 项目的技术细节（功能列表、PR 历史）→ wiki/projects/
          - MEMORY.md 只留索引级描述
 
       ⚠️ 编辑文件时：先 read 获取精确内容，再 edit。不要凭记忆猜 oldText。
@@ -93,9 +93,9 @@ nodes:
         awk '/^## /{section=$0} /^- [0-9]{4}-/{count[section]++; total++} END{for(s in count) print s, count[s]; print "TOTAL:", total}' beliefs-candidates.md
         ```
         报告格式：「N 条（§SectionA X 条 + §SectionB Y 条 + ...）」
-      - knowledge-base: cards N / projects N — ⚠️ 必须当场跑 `ls | wc -l`，不沿用旧数据：
+      - wiki: cards N / projects N — ⚠️ 必须当场跑 `ls | wc -l`，不沿用旧数据：
         ```bash
-        echo "cards: $(ls ~/.openclaw/workspace/knowledge-base/cards/ | wc -l), projects: $(ls ~/.openclaw/workspace/knowledge-base/projects/ | wc -l)"
+        echo "cards: $(ls ~/.openclaw/workspace/wiki/cards/ | wc -l), projects: $(ls ~/.openclaw/workspace/wiki/projects/ | wc -l)"
         ```
       - Repeat gradients: N 条（beliefs-candidates.md 中标了 repeated 的）[已验证]
       - DNA graduations: N 次（累计从 candidates 升级到 DNA 的）[已验证]
