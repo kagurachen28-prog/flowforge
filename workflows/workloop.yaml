@@ -3,7 +3,9 @@ description: 打工循环 — 每轮先跟进已有工作，再找新活
 start: followup
 nodes:
   followup:
-    task: '用 gogetajob sync 检查所有已提交 PR 的状态。
+    task: '**Step 1: PR 状态检查**
+
+      用 gogetajob sync 检查所有已提交 PR 的状态。
 
       对每个有新 review comment 或 CI 失败的 PR，列出详情。
 
@@ -16,6 +18,15 @@ nodes:
       如果有需要处理的反馈，说明具体是哪个 PR、什么反馈、是真人还是 bot。
 
       对于被关闭的 PR：读关闭原因，如果别人的方案更好，去学那个方案写wiki 笔记。
+
+
+      **Step 2: GitHub 通知检查**（不能跳过）
+
+      运行 `gh api notifications --jq ".[].subject | {title, url, type}"` 查看未读通知。
+
+      重点关注：issue comment（maintainer 回复你的 issue）、PR review（post-merge feedback）、mention。
+
+      merged PR 的通知也要看——post-merge review 是常见模式，不能因为 merged 就跳过。
 
       '
     branches:
