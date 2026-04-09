@@ -1,3 +1,3 @@
 #!/bin/bash
-export PATH="$HOME/.nvm/versions/node/v22.22.1/bin:$PATH"
-node /home/test/.openclaw/workspace/flowforge/dist/flowforge.js "$@"
+export PATH="$HOME/.nvm/versions/node/v22.22.2/bin:$PATH"
+node /home/kagura/.openclaw/workspace/flowforge/bin/flowforge.js "$@"
