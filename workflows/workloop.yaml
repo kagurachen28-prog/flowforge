@@ -20,6 +20,17 @@ nodes:
       对于被关闭的 PR：读关闭原因，如果别人的方案更好，去学那个方案写wiki 笔记。
 
 
+      **PR 维护检查**（每个 open PR 都要过）：
+
+      - 上次更新距今超过 1 周？→ 检查是否需要 rebase
+
+      - `gh pr view <N> --repo <repo> --json mergeable` 看有没有 conflict
+
+      - 有 conflict → rebase 并 force push，不要让维护者替你做
+
+      - 维护者已 approve 但没 merge？→ 礼貌 ping 一次
+
+
       **Step 2: GitHub 通知检查**（不能跳过）
 
       运行 `gh api notifications --jq ".[].subject | {title, url, type}"` 查看未读通知。
