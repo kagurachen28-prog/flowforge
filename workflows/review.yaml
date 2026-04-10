@@ -36,6 +36,7 @@ nodes:
       1. beliefs-candidates.md 有重复 3 次以上该升级的吗？
       2. 过去 24h DNA 变更（git log），行为真的变了吗？
       3. DNA 文件之间一致吗？
+      ⚠️ 计数纪律：所有数字必须附原始命令和输出。不可验证的标 [未验证]，不编来源不明的累计值。
     branches:
       - condition: "完成"
         next: memory_hygiene
