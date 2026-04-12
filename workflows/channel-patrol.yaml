@@ -1,0 +1,65 @@
+name: channel-patrol
+description: "総控巡検 — 读 memory 了解全局 + 检查各 channel + TODO 管理"
+start: read_memory
+
+nodes:
+  read_memory:
+    task: |
+      读 memory/当天日期.md，提取今天各 cron 的执行记录。
+      按 channel 分组汇总：
+      - 哪些 channel 有产出？产出了什么？
+      - 哪些 channel 该跑但没跑？（对照 channels/ 目录的 cron 配置）
+      - 有没有报错或异常？
+      输出：一份按 channel 分组的状态清单（每个 channel 1-2 行）。
+    branches:
+      - condition: "完成"
+        next: check_channels
+
+  check_channels:
+    task: |
+      用 Discord API 检查各 channel 最近 1 小时的消息。
+      对比上一步的 memory 记录，补充 memory 里没有的信息：
+      - 有没有 Luna 的新消息需要关注？
+      - 有没有卡住的 thread？
+      - 有没有 cron 执行了但没写 memory 的？
+      环境：proxy export https_proxy=http://127.0.0.1:1083
+      只检查有 cron 的 channel，不检查 #general 等非工作 channel。
+    branches:
+      - condition: "完成"
+        next: manage_todo
+
+  manage_todo:
+    task: |
+      读 pulse-todo SKILL.md，按其规则管理 TODO.md：
+      - 做完的 → 删
+      - 超 3 天的 → 做或删
+      - 依赖 Luna 的 → 标记出来
+      - 不对齐北极星的 → 建议删
+      （pin 更新由 hook 自动处理，不需要手动 PATCH）
+    branches:
+      - condition: "完成"
+        next: report
+
+  report:
+    task: |
+      生成简洁汇总发到当前 channel：
+      格式：
+      ```
+      📊 巡检 HH:00
+
+      **有动态的 channel：**
+      - #work: [一句话]
+      - #study: [一句话]
+      ...
+
+      **需关注：**
+      - [问题或待办]
+
+      **TODO 变更：**
+      - [删了什么/加了什么]
+      ```
+
+      如果一切正常、无新动态、TODO 无变化 → NO_REPLY
+
+      最后往 memory/当天日期.md 追加巡检记录。
+    terminal: true
