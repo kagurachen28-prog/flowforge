@@ -47,14 +47,16 @@ nodes:
       next: handle_feedback
     - condition: 所有 PR 状态正常，没有待处理的
       next: find_work
-    executor: subagent
+
   handle_feedback:
     task: "处理上一步发现的 PR 反馈：\n1. 读 review 评论，理解要求\n2. 修改代码\n3. **本地测试**（不能跳过）：\n   a.\
       \ 读wiki 笔记里的测试命令\n   b. 跑测试，确认全过\n   c. 改了接口/类型？→ grep 所有 mock/stub 文件，确认同步\n\
       \   d. `git diff --stat` 检查有没有遗漏的文件\n4. 提交并 push\n5. 在 PR 上回复 reviewer\n处理完所有反馈后汇报结果。\n"
     terminal: true
   find_work:
-    task: '用 gogetajob scan --all 扫描所有活跃公司（公司列表从 gogetajob DB 读取，不硬编码）。
+    task: '**先读方向**：cat ~/.openclaw/workspace/wiki/projects/work-targets.md — 理解北极星和选题原则。
+
+      用 gogetajob scan --all 扫描所有活跃公司（公司列表从 gogetajob DB 读取，不硬编码）。
 
       用 gogetajob feed 查看可做的 issue。
 
@@ -91,7 +93,7 @@ nodes:
       next: study
     - condition: 没有合适的 issue 可做
       next: reflect
-    executor: subagent
+
   study:
     task: "深入研究选中的项目和 issue：\n1. **必须先读笔记**（不能跳过）：\n   a. cat ~/.openclaw/workspace/wiki/projects/<项目名>.md\
       \ — wiki 笔记\n   b. 如果文件不存在，说明这是第一次打这个 repo，要特别小心\n1b. **验证本地测试环境**（第一次打新 repo\
@@ -121,7 +123,7 @@ nodes:
       next: implement
     - condition: issue 不合适（上游问题/竞争PR/太复杂），需要重选
       next: find_work
-    executor: subagent
+
   implement:
     task: "按照 study 阶段的计划实现：\n0. **分工决策**：\n   - 代码实现用 acpx exec 同步调 Claude Code：\n\
       \     `cd <repo> && /home/kagura/repo/openclaw/node_modules/.bin/acpx --approve-all\
@@ -138,7 +140,7 @@ nodes:
       \ 这个接口的文件，确认 mock/stub 同步了\n   c. 项目有测试命令？→ 跑。没有本地环境？→ 至少 grep 验证 mock 完整性\n\
       汇报实现结果和测试状态。\n"
     next: submit
-    executor: subagent
+
   submit:
     task: '提交 PR：
 
@@ -154,7 +156,7 @@ nodes:
 
       '
     next: verify
-    executor: subagent
+
   verify:
     task: '等 3-5 分钟，然后检查 PR 状态：
 
@@ -172,7 +174,7 @@ nodes:
       next: reflect
     - condition: 有问题需要修改
       next: implement
-    executor: subagent
+
   reflect:
     task: "反思本轮打工并**更新项目笔记**（不能跳过）：\n\n**第一步：更新wiki 笔记**（必须做）\n编辑 ~/.openclaw/workspace/wiki/projects/<项目名>.md，追加：\n\
       - 这次 PR 的结果（merged/pending/closed + 原因）\n- 维护者的 review 风格和偏好（新发现的）\n- **维护者\
@@ -192,7 +194,7 @@ nodes:
       \n**工具检查**：\n- gogetajob、gh、flowforge 等有没有问题？\n- 有 bug → 去工具 repo 提 issue 或自己修\n\
       \n把反思结果记到 memory/YYYY-MM-DD.md。\n"
     next: done
-    executor: subagent
+
   done:
     task: '这一轮工作完成。记录今天的工作到 memory 文件。
 

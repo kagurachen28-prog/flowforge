@@ -1,7 +1,7 @@
 {
   "name": "@kagura-agent/flowforge",
   "version": "1.1.1",
-  "description": "Enforced workflow engine for AI agents \u2014 YAML-defined, CLI-driven state machine that prevents agents from skipping steps",
+  "description": "Enforced workflow engine for AI agents — YAML-defined, CLI-driven state machine that prevents agents from skipping steps",
   "type": "module",
   "bin": {
     "flowforge": "./bin/flowforge.js"

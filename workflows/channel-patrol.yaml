@@ -31,10 +31,11 @@ nodes:
   manage_todo:
     task: |
       读 pulse-todo SKILL.md，按其规则管理 TODO.md：
-      - 做完的 → 删
-      - 超 3 天的 → 做或删
+      - **只删确认已完成的**（有 memory 记录证明做完了）
+      - 超 3 天没动的 → 标记提醒，不要直接删
       - 依赖 Luna 的 → 标记出来
-      - 不对齐北极星的 → 建议删
+      - 不对齐北极星的 → 建议删（不直接删）
+      ⚠️ 不确定是否完成的 → 不删。误删比留僵尸更糟。
       （pin 更新由 hook 自动处理，不需要手动 PATCH）
     branches:
       - condition: "完成"
