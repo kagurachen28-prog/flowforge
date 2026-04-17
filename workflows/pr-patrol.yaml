@@ -34,7 +34,11 @@ nodes:
       - CHANGES_REQUESTED → actionable
       - maintainer 评论提问/要求 → actionable
       - bot comment（CodeRabbit nitpick）→ 低优先级但也要看
-      - PR merged/closed → 记录，检查有无 post-merge feedback
+      - PR merged → 记录，检查有无 post-merge feedback
+      - **PR closed（非作者关闭）→ 🚨 最高优先级！** 读关闭 comment，判断原因：
+        - bot/policy 关闭（如 barnacle >10 PRs）→ 声誉事件，立刻清理多余 PR + 汇报
+        - maintainer 手动关闭 → 读原因，学习，记 wiki
+        - superseded → 确认真的是被替代，不要猜
       - 纯信息性通知（CI 状态等）→ 非 actionable
 
       汇报每条通知的判断结果和需要的行动。
