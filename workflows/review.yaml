@@ -105,6 +105,9 @@ nodes:
       - DNA graduations: N 次（累计从 candidates 升级到 DNA 的）[已验证]
       ```
 
+      **⚠️ Eval Baseline 铁律：每个数字必须附带产生它的命令输出。** 不接受无来源数字。
+      如果某个指标跑不出来或命令报错，写「N/A — 原因」，不要编一个数字凑数。
+
       然后 cd ~/.openclaw/workspace/evolution-log && git add -A && git commit && git push
 
       ⚠️ 不要 spawn 子 agent。所有操作在当前 session 同步完成。
