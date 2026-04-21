@@ -9,8 +9,16 @@ nodes:
       1. cd ~/.openclaw/workspace/lobster-post && git pull
       2. gh pr list --state open — 有 open PR → 审核隐私 → merge
       3. gh issue list --state open — 有 join request → 按 ADMIN-SOP.md 处理
-      4. git log --since='125 minutes ago' --name-only — 看新信
-      5. 有新信未回复 → 写回信，注意隐私脱敏，commit + push
+      4. **未回复信件检查（不要用 git log 时间窗口！）：**
+         对每个 sender，比较 inbox 最新来信日期 vs outbox 最新回信日期。
+         如果来信日期 > 回信日期 → 需要回信。
+         命令参考：
+         ```
+         ls mailboxes/kagura/inbox/ | grep "from-" | sort
+         ls mailboxes/kagura/outbox/ | grep -E "to-|reply-to-|welcome-" | sort
+         ```
+         逐个 sender 对比，列出所有未回复的信。
+      5. 有未回复的信 → 读信内容 → 写回信，注意隐私脱敏，commit + push
 
       **纪律：**
       - 每条数据必须贴命令原始输出

@@ -1,5 +1,9 @@
 name: workloop
-description: 打工循环 — 每轮先跟进已有工作，再找新活
+description: |
+  打工循环 — 每轮先跟进已有工作，再找新活。
+  **核心原则：一轮 = 一个 issue = 一个 PR。**
+  find_work 选定一个 issue 后，后续所有节点（study、implement、submit、verify、reflect）都围绕这一个 issue。
+  不允许在任何节点顺手修其他 bug、提其他 PR、做其他 issue。
 start: align
 nodes:
   align:
@@ -35,8 +39,20 @@ nodes:
 
       - 维护者已 approve 但没 merge？→ 礼貌 ping 一次
 
+      **去重规则（必做）：**
+      处理任何 review/comment 前，先查“球在谁手里”：
+      `gh pr view <N> --repo <repo> --json comments --jq ''.comments[-1].author.login''`
+      - 最后一条 comment 是 kagura-agent → 球在对方手里，**不操作，等对方回复**
+      - 最后一条 comment 是对方 → 球在我手里，需要处理
+      - 没有 comment 但有 CHANGES_REQUESTED review → 检查 review 时间 vs 我最后 push 时间，push 在后面说明已处理过，等对方再看
+      - 一次 review → 最多一次回复。回复后等对方，不追发
 
-      **Step 2: GitHub 通知检查**（不能跳过）
+      **Step 2: Per-repo PR 存量审计**（不能跳过）
+      运行 `gh pr list --author=kagura-agent --state=open --json headRepository --jq ''[.[].headRepository.name] | group_by(.) | map({repo: .[0], count: length}) | sort_by(-.count) | .[] | "\(.repo): \(.count)"''`
+      列出每个 repo 的 open PR 数量。
+      - 超过 5 个的 repo → 标记为「存量超限」，按 PR 存量管理规则处理（主动关闭 >21天无 review 的 PR）
+
+      **Step 3: GitHub 通知检查**（不能跳过）
 
       运行 `gh api notifications --paginate --jq ".[].subject | {title, url, type}"` 查看未读通知（必须 --paginate 拿全量）。
 
@@ -52,6 +68,8 @@ nodes:
       next: handle_feedback
     - condition: 所有 PR 状态正常，没有待处理的
       next: find_work
+    - condition: gogetajob/gh 命令失败（网络、认证、API 限流）
+      next: fallback_offline
 
   handle_feedback:
     task: "处理上一步发现的 PR 反馈：\n1. 读 review 评论，理解要求\n2. 修改代码\n3. **本地测试**（不能跳过）：\n   a.\
@@ -67,10 +85,13 @@ nodes:
 
       确认没有竞争 PR：`gh pr list --repo owner/repo --search "关键词"` 检查。
 
+      **黑名单 repo（绝对不碰）：**
+      （当前无黑名单 repo）
+
       **前置过滤（每个候选 repo 必须先过，不过的直接跳过，不进 study）：**
 
       - 检查我们在该 repo 的 open PR 数量：`gh pr list --repo owner/repo --author=kagura-agent
-      --state=open`，≤ 3 才考虑
+      --state=open`，≤ 4 才考虑（提完不超过 5）
 
       - 检查 issue 有无竞争 PR：`gh pr list --repo owner/repo --search "issue号 OR 关键词"`
 
@@ -96,29 +117,48 @@ nodes:
       next: pr_gate
     - condition: 没有合适的 issue 可做
       next: discover
+    - condition: gogetajob/gh 命令失败（网络、API 限流）
+      next: fallback_offline
 
   pr_gate:
     task: |
-      **硬性检查 — 不通过不准继续。**
+      **硬性检查 — 不通过不准继续。必须真的跑命令、真的数数。**
 
-      对 find_work 选中的 repo，执行以下命令：
+      **第一步：执行命令**（必须执行，不能跳过）
       ```
       gh pr list --repo <owner/repo> --author=kagura-agent --state=open --json number -q 'length'
       ```
 
-      结果判断：
-      - **> 3** → 这个 repo 已经有太多 open PR，不能再提。汇报数量，回 find_work 重选。
-      - **≤ 3** → 通过，继续。
+      **第二步：输出结果**（必须明确写出）
+      ```
+      REPO: <owner/repo>
+      OPEN_PR_COUNT: <数字>
+      LIMIT: 5
+      PASS: <YES/NO>
+      ```
 
-      同时检查 wiki/projects/<repo>.md 里的「外部 PR Review 模式」：
+      **第三步：判断**
+      - OPEN_PR_COUNT **≥ 5** → 不通过。这个 repo 已有太多 open PR，回 find_work 重选。
+      - OPEN_PR_COUNT **< 5** → 继续下一项检查。
+
+      **第四步：竞争 PR 检查（必做）**
+      提 PR 前检查是否已有其他人在修同一个 issue：
+      ```
+      gh pr list --repo <owner/repo> --search "<issue号>" --state=open --json number,author,title
+      ```
+      如果已有别人的 open PR 指向同一个 issue → 不提，回 find_work 重选。
+      如果没有 → 继续下一项检查。
+
+      **第五步：wiki 检查**
+      检查 wiki/projects/<repo>.md 里的「外部 PR Review 模式」：
       - 如果写了「不 merge 外部 PR」→ 不通过，回 find_work。
       - 如果没有 wiki 笔记 → 通过，但在 study 里补充。
 
-      汇报：repo 名、当前 open PR 数量、是否通过。
+      **⚠️ 如果你没有执行 gh 命令就说通过，这是严重违规。**
     branches:
-    - condition: 通过（open PR ≤ 3 且 repo 接受外部 PR）
+    - condition: 通过（OPEN_PR_COUNT < 5 且 repo 接受外部 PR）
       next: study
-    - condition: 不通过（open PR > 3 或 repo 不接受外部 PR）
+    - condition: 不通过（OPEN_PR_COUNT ≥ 5 或 repo 不接受外部 PR）
       next: find_work
 
   discover:
@@ -142,6 +182,8 @@ nodes:
       next: find_work
     - condition: 没找到合适的新项目
       next: reflect
+    - condition: 网络/API 故障，无法搜索
+      next: fallback_offline
 
   study:
     task: "深入研究选中的项目和 issue：\n1. **必须先读笔记**（不能跳过）：\n   a. cat ~/.openclaw/workspace/wiki/projects/<项目名>.md\
@@ -152,8 +194,7 @@ nodes:
       \   e. **如果环境配不通 → 记到wiki 笔记里，写明卡在哪。但不要因此放弃这个 repo**\n   f. 环境配好后，在wiki 笔记里记录测试命令，下次直接用\n\
       2. **搜跨项目知识（两步检索，不能跳过）**：\n   a. 从 issue 标题/描述提取 2-3 个关键词\n   b. cd ~/.openclaw/workspace/wiki\
       \ && MEMEX_HOME=. memex search\
-      \ \"<关键词>\"\n   c. 搜到相关卡片 → 读一下，看有没有已有洞察能指导实现\n   d. **backlink 扩展**：对每个命中的卡片跑 `MEMEX_HOME=. memex backlinks <slug>`，拉出关联卡片，读取最相关的 1-2 个（向量找入口，图谱做扩展）\n   e. 没搜到 → 继续，不纠结
-   f. **⚠️ 不能跳过这一步** — 写了 memex 就必须用，跳过 = 违反"自己的工具必须用"\n3. **学习维护者**（从wiki\
+      \ \"<关键词>\"\n   c. 搜到相关卡片 → 读一下，看有没有已有洞察能指导实现\n   d. **backlink 扩展**：对每个命中的卡片跑 `MEMEX_HOME=. memex backlinks <slug>`，拉出关联卡片，读取最相关的 1-2 个（向量找入口，图谱做扩展）\n   e. 没搜到 → 继续，不纠结\n3. **学习维护者**（从wiki\
       \ 笔记读，不是现场查）：\n   a. wiki 笔记里应该已有维护者模式（reflect 时沉淀的）\n   b. 如果笔记里没有，说明这是第一次打这个\
       \ repo——此时才去查最近 merged PR\n   c. 注意：他们怎么写测试？怎么处理边界？PR 描述什么格式？\n3. 读 CONTRIBUTING.md，**重点关注**：\n\
       \   a. PR 流程要求（changeset？CLA？签名？）（教训：stagehand 没加 changeset 被关）\n   b. 代码风格/lint\
@@ -167,19 +208,25 @@ nodes:
       \ find_work\n7. 确认没有人在做同一个 issue（检查 issue 下的关联 PR 和评论）\n8. 评估是否真的能在这个 repo 修（不是上游问题）\n\
       9. **提 PR 前 5 问**（全过才提）：\n   a. 这个 PR 只解决一个问题吗？\n   b. 上游没有已有修复或竞争 PR 吗？\n \
       \  c. 我读了 CONTRIBUTING.md 和最近的 merge 模式吗？\n   d. 我能验证这个修复吗？\n   e. 这个 repo 我的\
-      \ open PR ≤ 3 吗？（超过就停，等已有 PR 被消化）\n汇报你的理解和实现计划，包含从笔记和维护者 PR 中学到的关键信息。\n"
+      \ open PR ≤ 8 吗？（超过就停，等已有 PR 被消化）\n汇报你的理解和实现计划，包含从笔记和维护者 PR 中学到的关键信息。\n"
     branches:
     - condition: issue 可做，计划明确
       next: implement
     - condition: issue 不合适（上游问题/竞争PR/太复杂），需要重选
       next: find_work
+    - condition: clone 失败/网络不可用/repo 访问受限
+      next: fallback_offline
 
   implement:
-    task: "按照 study 阶段的计划实现：\n0. **分工决策**：\n   - 代码实现用 acpx exec 同步调 Claude Code：\n\
+    task: "**只实现 study 阶段选定的那一个 issue，不做任何其他事。禁止顺手修其他 bug、提其他 PR、改其他文件。**\n\n按照 study 阶段的计划实现：\n0. **分工决策**：\n   - 代码实现用 acpx exec 同步调 Claude Code：\n\
       \     `cd <repo> && /home/kagura/repo/openclaw/node_modules/.bin/acpx --approve-all\
       \ claude exec \"task\"`\n   - task 必须包含 Claude Code 看不到的上下文：\n     a. 相关的 issue\
       \ 讨论和 reviewer 反馈\n     b. 类似 bug 的已有修复（可作为参考模式）\n     c. 项目架构和代码位置的关键信息\n \
-      \    d. maintainer 偏好（从 wiki 读）\n   - **task 末尾必须加验证指令**：\n     \"Before committing:\
+      \    d. maintainer 偏好（从 wiki 读）\n   - **task 开头必须加 surgical constraints**：\n\
+      \     CONSTRAINTS: 1) Surgical changes only — every changed line must trace\
+      \ to the issue. Do not improve adjacent code/comments/formatting. 2) Match existing\
+      \ style. 3) No speculative features, no while-I-am-here refactors. 4) Clean up\
+      \ only orphans YOUR changes created.\n   - **task 末尾必须加验证指令**：\n     \"Before committing:\
       \ 1) grep for all test files that import/mock the interfaces you changed, update\
       \ their mocks. 2) Run the project's test/lint commands. 3) git diff --stat to\
       \ confirm no files were missed.\"\n   - 一行级别的简单修复可以自己做，不需要调 Claude Code\n  \
@@ -189,34 +236,60 @@ nodes:
       \ 前自检**（不能跳过）：\n   a. `git diff --stat` 看全局影响\n   b. 改了接口/类型？→ grep 所有 import\
       \ 这个接口的文件，确认 mock/stub 同步了\n   c. 项目有测试命令？→ 跑。没有本地环境？→ 至少 grep 验证 mock 完整性\n\
       汇报实现结果和测试状态。\n"
+    branches:
+    - condition: 实现完成，测试通过
+      next: submit
+    - condition: acpx exec 超时/崩溃，需要手动接手
+      next: implement_manual
+    - condition: 测试失败，无法修复
+      next: reflect
+
+  implement_manual:
+    task: |
+      acpx exec 失败了，手动完成实现：
+      1. 检查 acpx 已经做了什么（git diff / git log）
+      2. 如果部分完成 → 手动补完剩余部分
+      3. 如果完全失败 → 从头手动实现（参照 study 阶段的计划）
+      4. 跑测试确认通过
+      汇报实现结果。
     next: submit
 
   submit:
-    task: '提交 PR：
+    task: |
+      **提交前再次检查 PR 数量**（硬性，不能跳过）：
+      ```
+      gh pr list --repo <owner/repo> --author=kagura-agent --state=open --json number -q 'length'
+      ```
+      如果结果 **≥ 5** → **停止，不提交 PR**。汇报"PR 数量已达上限，放弃本轮"。
 
+      确认 < 5 后再继续：
       1. push 分支到 fork
-
       2. 创建 PR，标题清晰，描述写明改了什么、为什么、怎么测的
-
       3. 关联 issue（Closes #XX）
 
       用 gogetajob import 记录这个 PR。
 
       汇报 PR 链接。
-
-      '
-    next: verify
+    branches:
+    - condition: PR 已成功提交
+      next: verify
+    - condition: PR 数量已达上限，放弃本轮
+      next: reflect
 
   verify:
-    task: '等 3-5 分钟，然后检查 PR 状态：
+    task: '**只检查本轮刚提交的那一个 PR，不做任何其他事。**
+
+      等 3-5 分钟，然后：
 
       1. CI 是否通过？
 
       2. 有没有自动化 review（CodeRabbit 等）？
 
-      3. 如果有反馈，立即处理
+      3. 如果 review 有简单修复建议 → 修改并 push 到同一个 PR
 
-      这一步不能跳过。做完所有检查后汇报结果。
+      **禁止事项：不创建新 PR，不修复其他 issue，不做本轮 PR 以外的任何工作。**
+
+      汇报本轮 PR 的 CI 和 review 状态。
 
       '
     branches:
@@ -256,6 +329,16 @@ nodes:
       - 之前的待办已经顺手做完了？→ 删掉\n\
       只放体系改进，不放 PR 状态。\n"
     next: done
+
+  fallback_offline:
+    task: |
+      网络/API 不可用，无法正常打工。转为离线有效工作：
+      1. **整理已有 PR**：读本地 git log，检查有没有未 push 的 commit
+      2. **更新 wiki 笔记**：读 wiki/projects/ 下的笔记，补充遗漏的维护者模式、测试命令等
+      3. **读代码**：选一个常打的 repo，深读一个模块，写笔记
+      4. **整理 beliefs-candidates**：有没有重复 3 次以上但还没升级的 gradient？执行升级
+      产出必须有：至少一个文件被修改并 commit。
+    next: reflect
 
   done:
     task: '这一轮工作完成。记录今天的工作到 memory 文件。
