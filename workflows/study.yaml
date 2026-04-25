@@ -164,6 +164,27 @@ nodes:
          - 记架构洞察和反直觉的发现
       4. git commit && git push 到 kagura-agent/wiki
       汇报写了什么。
+    next: cascade
+
+  cascade:
+    task: |
+      **级联更新检查**（参考 [[cascading-update-methodology]]）：
+      刚写完新笔记，现在检查已有知识是否需要更新。
+
+      1. **信号提取**：从刚写的笔记中提取 3-5 个关键信号/关键词
+      2. **搜索扩展**：
+         - `cd ~/.openclaw/workspace/wiki && MEMEX_HOME=. memex search "<关键词>" --limit 5`
+         - 对命中卡片跑 `MEMEX_HOME=. memex backlinks <slug>` 扩展 1 层
+      3. **更新判断**：每张命中卡片问——新信号是否补充/修正/推翻已有内容？
+         - 命中率约 40-50%，不是所有都需要更新
+      4. **追加更新**：需要更新的卡片追加新 section（带日期），不重写已有内容
+      5. **跳过条件**：
+         - 新笔记完全是新领域，没有关联 → 跳过整个级联
+         - 信号太弱 → 跳过
+         - 不确定 → 跳过（宁漏勿错）
+      6. 有更新 → git commit && git push
+
+      汇报：更新了几张卡片、跳过了几张、为什么。
     next: reflect
 
   reflect:
