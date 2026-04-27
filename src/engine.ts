@@ -35,6 +35,7 @@ export function start(workflowName: string) {
   let previousId: number | null = null;
   if (existing) {
     // Auto-close stale active instance instead of throwing
+    console.warn(`⚠️  Auto-closing stale instance #${existing.id} (was at node '${existing.current_node}')`);
     db.closeHistory(existing.id, existing.current_node, null);
     db.setInstanceStatus(existing.id, "done");
     previousId = existing.id;
