@@ -106,6 +106,10 @@ nodes:
          - 重要的 issue 讨论（设计决策、方向争论）
          - 新的 release
       3. 有没有跟我们方向相关的新信号？
+
+      ⚠️ **不做自己 open PR 的状态巡检**（mergeable、review status 等）。
+      那是 work-loop / github-check 的事。这里只关心「别人在做什么、生态在往哪走」。
+
       汇报哪些项目有值得深入的新动态。
     branches:
       - condition: "有项目有值得学习的新动态"
