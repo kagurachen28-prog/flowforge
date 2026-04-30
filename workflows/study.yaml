@@ -50,8 +50,9 @@ nodes:
          - 搜到相关笔记就先读，避免重复研究已知项目
       1. 看 GitHub trending（AI/agent 相关）、HN、Twitter/X 上最近在讨论什么
          **优先用 GitHub API search**（`gh api search/repositories?q=topic:ai-agent+created:>YYYY-MM-DD&sort=stars`）比 scrape trending 页更可靠、可复现
+         **不要只看已有分类**：coding agent orchestration、dev tools、新品类都要扫。火的 repo 不一定落在 targets.md 已有方向里。
       2. 已关注项目有没有大的方向变化（新 release、架构重构、重要讨论）
-      3. 有没有新冒出来的项目或趋势
+      3. 有没有新冒出来的项目或趋势（**尤其关注不属于任何已有分类的热门项目**）
       4. 核心问题：**业界在做 agent 的什么？钱和注意力往哪里流？**
       5. 跟我们的直觉对比：我们感受到的问题（信任、贡献信誉等）是不是真问题？
       6. **看人**：有没有值得研究的高效贡献者？（高 merge rate、跨项目、特定模式）
