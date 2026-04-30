@@ -225,6 +225,69 @@ program
   });
 
 
+program
+  .command("stats [workflow]")
+  .description("Show workflow execution analytics and guideposts")
+  .action((workflow) => {
+    try {
+      const { workflowStats, guideposts, topBranches, nodeStats } = engine.stats(workflow);
+
+      // Workflow summary
+      console.log("\n=== Workflow Summary ===\n");
+      if (workflowStats.length === 0) {
+        console.log("  No workflow data yet.\n");
+      } else {
+        console.log(`  ${"Workflow".padEnd(25)} ${"Runs".padStart(6)} ${"Done %".padStart(10)} ${"Avg (min)".padStart(12)}`);
+        console.log("  " + "-".repeat(57));
+        for (const w of workflowStats) {
+          const dur = w.avg_duration_min != null ? w.avg_duration_min.toFixed(1) : "—";
+          console.log(`  ${w.workflow_name.padEnd(25)} ${String(w.total_runs).padStart(6)} ${w.completion_rate.toFixed(1).padStart(8)}% ${dur.padStart(12)}`);
+        }
+      }
+
+      // Guideposts
+      const { lowCompletion, slowNodes, abandonedNodes } = guideposts;
+      if (lowCompletion.length || slowNodes.length || abandonedNodes.length) {
+        console.log("\n=== Guideposts (anomalies) ===\n");
+
+        for (const g of lowCompletion) {
+          console.log(`  ⚠  ${g.workflow_name}: only ${g.completion_rate}% completion (${g.total_runs} runs)`);
+        }
+        for (const g of slowNodes) {
+          console.log(`  🐢 ${g.workflow_name} → ${g.node_name}: avg ${g.avg_duration_min} min (${g.visit_count} visits)`);
+        }
+        for (const g of abandonedNodes) {
+          console.log(`  💀 ${g.workflow_name} → ${g.node_name}: ${g.stall_count} stalls`);
+        }
+      }
+
+      // Top branch choices
+      if (topBranches.length) {
+        console.log("\n=== Top Branch Choices ===\n");
+        for (const b of topBranches) {
+          console.log(`  ${b.node_name}: "${b.branch_taken}" (${b.times_chosen}x)`);
+        }
+      }
+
+      // Per-node breakdown
+      if (nodeStats) {
+        console.log(`\n=== Node Breakdown: ${workflow} ===\n`);
+        console.log(`  ${"Node".padEnd(30)} ${"Visits".padStart(8)} ${"Avg (min)".padStart(12)}`);
+        console.log("  " + "-".repeat(54));
+        for (const n of nodeStats) {
+          const dur = n.avg_duration_min != null ? n.avg_duration_min.toFixed(1) : "—";
+          console.log(`  ${n.node_name.padEnd(30)} ${String(n.visit_count).padStart(8)} ${dur.padStart(12)}`);
+        }
+      }
+
+      console.log();
+    } catch (e: any) {
+      console.error(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
+
 function printStatus() {
   const s = engine.status();
   console.log(`\n📍 Current: ${s.currentNode}`);

@@ -197,6 +197,16 @@ export function getAction(workflowName?: string, previousResult?: string): FlowA
   };
 }
 
+export function stats(workflowName?: string) {
+  const workflowStats = db.getWorkflowStats();
+  const guideposts = db.getGuideposts();
+  const topBranches = db.getTopBranches(workflowName);
+
+  const nodeStats = workflowName ? db.getNodeStats(workflowName) : null;
+
+  return { workflowStats, guideposts, topBranches, nodeStats };
+}
+
 export function advanceWithResult(result: string, workflowName?: string): FlowAction {
   // Parse result to extract branch choice (looks for 'Branch: N' or 'branch N' pattern)
   let branch: number | undefined;

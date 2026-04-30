@@ -123,6 +123,113 @@ export function getHistory(instanceId: number) {
   }[];
 }
 
+// --- Stats queries ---
+
+export function getWorkflowStats() {
+  return db.prepare(`
+    SELECT
+      i.workflow_name,
+      COUNT(*) AS total_runs,
+      ROUND(100.0 * SUM(CASE WHEN i.status = 'done' THEN 1 ELSE 0 END) / COUNT(*), 1) AS completion_rate,
+      ROUND(AVG(
+        CASE WHEN i.status = 'done'
+          THEN (julianday(i.updated_at) - julianday(i.created_at)) * 24 * 60
+          ELSE NULL
+        END
+      ), 1) AS avg_duration_min
+    FROM instances i
+    GROUP BY i.workflow_name
+    ORDER BY total_runs DESC
+  `).all() as {
+    workflow_name: string;
+    total_runs: number;
+    completion_rate: number;
+    avg_duration_min: number | null;
+  }[];
+}
+
+export function getTopBranches(workflowName?: string) {
+  const sql = `
+    SELECT h.node_name, h.branch_taken, COUNT(*) AS times_chosen
+    FROM history h
+    JOIN instances i ON h.instance_id = i.id
+    WHERE h.branch_taken IS NOT NULL
+    ${workflowName ? "AND i.workflow_name = ?" : ""}
+    GROUP BY h.node_name, h.branch_taken
+    ORDER BY times_chosen DESC
+    LIMIT 10
+  `;
+  const stmt = db.prepare(sql);
+  return (workflowName ? stmt.all(workflowName) : stmt.all()) as {
+    node_name: string;
+    branch_taken: string;
+    times_chosen: number;
+  }[];
+}
+
+export function getNodeStats(workflowName: string) {
+  return db.prepare(`
+    SELECT
+      h.node_name,
+      COUNT(*) AS visit_count,
+      ROUND(AVG(
+        CASE WHEN h.exited_at IS NOT NULL
+          THEN (julianday(h.exited_at) - julianday(h.entered_at)) * 24 * 60
+          ELSE NULL
+        END
+      ), 1) AS avg_duration_min
+    FROM history h
+    JOIN instances i ON h.instance_id = i.id
+    WHERE i.workflow_name = ?
+    GROUP BY h.node_name
+    ORDER BY visit_count DESC
+  `).all(workflowName) as {
+    node_name: string;
+    visit_count: number;
+    avg_duration_min: number | null;
+  }[];
+}
+
+export function getGuideposts() {
+  const lowCompletion = db.prepare(`
+    SELECT
+      workflow_name,
+      COUNT(*) AS total_runs,
+      ROUND(100.0 * SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) / COUNT(*), 1) AS completion_rate
+    FROM instances
+    GROUP BY workflow_name
+    HAVING completion_rate < 50 AND total_runs >= 3
+    ORDER BY completion_rate ASC
+  `).all() as { workflow_name: string; total_runs: number; completion_rate: number }[];
+
+  const slowNodes = db.prepare(`
+    SELECT
+      i.workflow_name, h.node_name,
+      ROUND(AVG((julianday(h.exited_at) - julianday(h.entered_at)) * 24 * 60), 1) AS avg_duration_min,
+      COUNT(*) AS visit_count
+    FROM history h
+    JOIN instances i ON h.instance_id = i.id
+    WHERE h.exited_at IS NOT NULL
+    GROUP BY i.workflow_name, h.node_name
+    HAVING avg_duration_min > 10
+    ORDER BY avg_duration_min DESC
+  `).all() as { workflow_name: string; node_name: string; avg_duration_min: number; visit_count: number }[];
+
+  const abandonedNodes = db.prepare(`
+    SELECT
+      i.workflow_name, h.node_name,
+      COUNT(*) AS stall_count
+    FROM history h
+    JOIN instances i ON h.instance_id = i.id
+    WHERE h.exited_at IS NULL AND i.status != 'active'
+    GROUP BY i.workflow_name, h.node_name
+    ORDER BY stall_count DESC
+    LIMIT 10
+  `).all() as { workflow_name: string; node_name: string; stall_count: number }[];
+
+  return { lowCompletion, slowNodes, abandonedNodes };
+}
+
 export type InstanceRow = {
   id: number;
   workflow_name: string;
