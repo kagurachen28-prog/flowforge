@@ -104,6 +104,14 @@ export function next(branch?: number, workflowName?: string) {
     throw new Error("Node has no next, branches, or terminal — this should not happen");
   }
 
+  // Check plateau: how many times has nextNode been visited?
+  let plateauWarning: string | undefined;
+  const visits = db.getNodeVisitCount(inst.id, nextNode);
+  const limit = wf.nodes[nextNode]?.max_visits ?? 5;
+  if (visits >= limit) {
+    plateauWarning = `Node ${nextNode} visited ${visits} times (limit: ${limit}). Consider breaking the loop or adjusting strategy.`;
+  }
+
   // Close current history entry, move to next node, open new history entry
   db.closeHistory(inst.id, inst.current_node, branchTaken);
   db.updateInstanceNode(inst.id, nextNode);
@@ -117,6 +125,7 @@ export function next(branch?: number, workflowName?: string) {
     task: nextNodeDef.task,
     branches: nextNodeDef.branches || null,
     hasNext: !!nextNodeDef.next,
+    plateauWarning,
   };
 }
 

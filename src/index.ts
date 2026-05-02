@@ -96,6 +96,9 @@ program
   .action((opts) => {
     try {
       const result = engine.next(opts.branch);
+      if (result.plateauWarning) {
+        console.log(`\n⚠️ ${result.plateauWarning}`);
+      }
       if (result.terminal) {
         console.log(`\n✅ ${result.from} → (end) — Workflow complete!\n`);
       } else {

@@ -56,6 +56,9 @@ vi.mock("./db.js", () => {
     getHistory(instanceId: number) {
       return history.filter(h => h.instance_id === instanceId);
     },
+    getNodeVisitCount(instanceId: number, nodeName: string) {
+      return history.filter(h => h.instance_id === instanceId && h.node_name === nodeName).length;
+    },
   };
 });
 
@@ -291,5 +294,61 @@ describe("advanceWithResult", () => {
     engine.start("linear");
     engine.next(undefined, "linear"); // -> step2
     expect(() => engine.advanceWithResult("finishing", "linear")).toThrow("No active instance");
+  });
+});
+
+const loopYaml = `
+name: looper
+start: work
+nodes:
+  work:
+    task: do work
+    next: work
+`;
+
+const loopCustomYaml = `
+name: looper_custom
+start: work
+nodes:
+  work:
+    task: do work
+    max_visits: 3
+    next: work
+`;
+
+describe("plateau detection", () => {
+  it("triggers plateauWarning after 5 visits (default)", () => {
+    engine.define(loopYaml);
+    engine.start("looper");
+    // start adds 1 history entry for 'work'. Each next() closes + re-adds 'work'.
+    // After start: 1 visit. After next() x4: 5 visits. The 5th next should warn.
+    for (let i = 0; i < 4; i++) {
+      const r = engine.next(undefined, "looper");
+      expect(r.plateauWarning).toBeUndefined();
+    }
+    const result = engine.next(undefined, "looper");
+    expect(result.plateauWarning).toBeDefined();
+    expect(result.plateauWarning).toContain("work");
+    expect(result.plateauWarning).toContain("limit: 5");
+  });
+
+  it("triggers earlier with custom max_visits", () => {
+    engine.define(loopCustomYaml);
+    engine.start("looper_custom");
+    // After start: 1 visit. After next() x2: 3 visits. The 3rd next should warn.
+    for (let i = 0; i < 2; i++) {
+      const r = engine.next(undefined, "looper_custom");
+      expect(r.plateauWarning).toBeUndefined();
+    }
+    const result = engine.next(undefined, "looper_custom");
+    expect(result.plateauWarning).toBeDefined();
+    expect(result.plateauWarning).toContain("limit: 3");
+  });
+
+  it("has no warning for normal linear flow", () => {
+    engine.define(linearYaml);
+    engine.start("linear");
+    const result = engine.next(undefined, "linear");
+    expect(result.plateauWarning).toBeUndefined();
   });
 });

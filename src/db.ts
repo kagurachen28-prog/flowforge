@@ -112,6 +112,13 @@ export function closeHistory(instanceId: number, nodeName: string, branchTaken: 
   ).run(branchTaken, instanceId, nodeName);
 }
 
+export function getNodeVisitCount(instanceId: number, nodeName: string): number {
+  const row = db.prepare(
+    "SELECT COUNT(*) as cnt FROM history WHERE instance_id = ? AND node_name = ?"
+  ).get(instanceId, nodeName) as { cnt: number };
+  return row.cnt;
+}
+
 export function getHistory(instanceId: number) {
   return db.prepare(
     "SELECT node_name, branch_taken, entered_at, exited_at FROM history WHERE instance_id = ? ORDER BY id"

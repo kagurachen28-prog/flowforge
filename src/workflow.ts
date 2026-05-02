@@ -11,6 +11,7 @@ export interface WorkflowNode {
   next?: string;
   branches?: Branch[];
   terminal?: boolean;
+  max_visits?: number;  // plateau detection: warn after this many visits (default: 5)
 }
 
 export interface Workflow {
