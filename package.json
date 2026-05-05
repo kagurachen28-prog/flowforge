@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/flowforge.js --external:better-sqlite3 --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
-    "postbuild": "npm rebuild better-sqlite3",
+    "postbuild": "pnpm rebuild better-sqlite3",
     "test": "vitest run"
   },
   "keywords": [
