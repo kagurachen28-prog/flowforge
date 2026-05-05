@@ -218,6 +218,13 @@ nodes:
       - 多文件改动 / 涉及接口变更 → 必须详细列出每个文件的变更
       - 不确定的地方用 `[?]` 标记，在 implement 时优先验证
 
+      **防 supersede 检查**（过一遍 wiki/cards/pr-superseded-lessons.md 检查清单 Phase 2+3）：
+      - 我在修根因还是绕症状？能否在源头拦截？
+      - Scope 是否最小？只影响一个 provider/platform 就只改那里
+      - 保持向后兼容 defaults？新行为 opt-in？
+      - 测试策略覆盖 happy path + error/teardown path？
+      - CLI fix 测了所有语法变体？docs 同步了？
+
       汇报计划。如果写计划过程中发现 issue 比想象的复杂或方向有问题，可以退回 find_work。
     branches:
     - condition: 计划明确，可以开始实现
