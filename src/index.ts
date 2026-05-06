@@ -38,7 +38,7 @@ const program = new Command();
 program
   .name("flowforge")
   .description("Personal workflow engine")
-  .version("1.2.0");
+  .version(process.env.npm_package_version ?? "1.2.3");
 
 // Shared instance flag
 const withInstance = (cmd: ReturnType<typeof Command.prototype.command>) =>
