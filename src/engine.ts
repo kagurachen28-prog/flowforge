@@ -1,4 +1,5 @@
 import { parseWorkflow, type Workflow, type WorkflowNode, type Branch } from "./workflow.js";
+import { execSync } from "child_process";
 import * as db from "./db.js";
 
 export interface FlowAction {
@@ -17,15 +18,30 @@ function loadWorkflow(name: string): Workflow {
   return parseWorkflow(row.yaml_content);
 }
 
-function requireActiveInstance(workflowName?: string) {
-  const inst = db.getActiveInstance(workflowName);
-  if (!inst) throw new Error("No active instance. Use 'flowforge start <workflow>' first.");
+function resolveInstance(workflowName?: string, instanceId?: number) {
+  if (instanceId !== undefined) {
+    const inst = db.getInstance(instanceId);
+    if (!inst) throw new Error(`Instance #${instanceId} not found.`);
+    if (inst.status !== 'active') throw new Error(`Instance #${instanceId} is ${inst.status}.`);
+    return inst;
+  }
+  return db.getActiveInstance(workflowName);
+}
+
+function requireActiveInstance(workflowName?: string, instanceId?: number) {
+  const inst = resolveInstance(workflowName, instanceId);
+  if (!inst) {
+    if (instanceId !== undefined) {
+      throw new Error(`Instance #${instanceId} not found or not active.`);
+    }
+    throw new Error("No active instance. Use 'flowforge start <workflow>' first.");
+  }
   return inst;
 }
 
-export function define(yamlContent: string) {
+export function define(yamlContent: string, source: 'auto' | 'manual' = 'auto') {
   const wf = parseWorkflow(yamlContent);
-  db.upsertWorkflow(wf.name, yamlContent);
+  db.upsertWorkflow(wf.name, yamlContent, source);
   return wf.name;
 }
 
@@ -44,8 +60,8 @@ export function start(workflowName: string) {
   return { id, node: wf.start, previouslyClosed: previousId };
 }
 
-export function status(workflowName?: string) {
-  const inst = requireActiveInstance(workflowName);
+export function status(workflowName?: string, instanceId?: number) {
+  const inst = requireActiveInstance(workflowName, instanceId);
   const wf = loadWorkflow(inst.workflow_name);
   const node = wf.nodes[inst.current_node];
   if (!node) throw new Error(`Node '${inst.current_node}' not found in workflow`);
@@ -60,14 +76,32 @@ export function status(workflowName?: string) {
     hasNext: !!node.next,
     nextNode: node.next || null,
     terminal: !!node.terminal,
+    guard: node.guard || null,
   };
 }
 
-export function next(branch?: number, workflowName?: string) {
-  const inst = requireActiveInstance(workflowName);
+export function next(branch?: number, workflowName?: string, instanceId?: number) {
+  const inst = requireActiveInstance(workflowName, instanceId);
   const wf = loadWorkflow(inst.workflow_name);
   const node = wf.nodes[inst.current_node];
   if (!node) throw new Error(`Node '${inst.current_node}' not found`);
+
+  // Check guard before allowing progression
+  if (node.guard) {
+    try {
+      const result = execSync(node.guard, { encoding: "utf-8", timeout: 60_000 });
+      // Guard passed — log output as a note
+      console.error(`\n[guard] ${node.guard}\n[guard output]\n${result.trim()}\n`);
+    } catch (e: any) {
+      const code = e.status ?? "unknown";
+      const output = e.stdout ? `\n${e.stdout.trim()}` : "";
+      throw new Error(
+        `Guard failed for node '${inst.current_node}': exit ${code}${output}\n` +
+        `Command: ${node.guard}\n` +
+        `Refusing to advance. Fix the guard condition before proceeding.`
+      );
+    }
+  }
 
   let nextNode: string;
   let branchTaken: string | null = null;
@@ -132,8 +166,8 @@ export function next(branch?: number, workflowName?: string) {
   };
 }
 
-export function log(workflowName?: string) {
-  const inst = requireActiveInstance(workflowName);
+export function log(workflowName?: string, instanceId?: number) {
+  const inst = requireActiveInstance(workflowName, instanceId);
   return {
     workflowName: inst.workflow_name,
     instanceId: inst.id,
@@ -145,12 +179,21 @@ export function list() {
   return db.listWorkflows();
 }
 
-export function active() {
-  return db.listActiveInstances();
+export function active(workflowName?: string) {
+  return db.listActiveInstances(workflowName);
 }
 
-export function reset(workflowName?: string) {
-  const inst = requireActiveInstance(workflowName);
+export function kill(instanceId: number) {
+  const inst = db.getInstance(instanceId);
+  if (!inst) throw new Error(`Instance #${instanceId} not found.`);
+  if (inst.status !== 'active') throw new Error(`Instance #${instanceId} is already ${inst.status}.`);
+  db.closeHistory(inst.id, inst.current_node, null);
+  db.setInstanceStatus(inst.id, "cancelled");
+  return { id: inst.id, workflowName: inst.workflow_name, node: inst.current_node };
+}
+
+export function reset(workflowName?: string, instanceId?: number) {
+  const inst = requireActiveInstance(workflowName, instanceId);
   const wf = loadWorkflow(inst.workflow_name);
 
   // Mark old instance as done
@@ -163,8 +206,17 @@ export function reset(workflowName?: string) {
   return { id, node: wf.start };
 }
 
-export function getAction(workflowName?: string, previousResult?: string): FlowAction {
-  const inst = requireActiveInstance(workflowName);
+export function deleteWorkflow(name: string) {
+  // Prevent deleting workflows that have active instances
+  const activeInstances = db.listActiveInstances(name);
+  if (activeInstances.length > 0) {
+    throw new Error(`Cannot delete workflow '${name}': ${activeInstances.length} active instance(s) still running. Kill them first with 'flowforge kill <instance-id>' or wait for them to complete.`);
+  }
+  db.deleteWorkflow(name);
+}
+
+export function getAction(workflowName?: string, previousResult?: string, instanceId?: number): FlowAction {
+  const inst = requireActiveInstance(workflowName, instanceId);
   const wf = loadWorkflow(inst.workflow_name);
   const node = wf.nodes[inst.current_node];
   if (!node) throw new Error(`Node '${inst.current_node}' not found`);
@@ -208,7 +260,7 @@ export function getAction(workflowName?: string, previousResult?: string): FlowA
   };
 }
 
-export function advanceWithResult(result: string, workflowName?: string): FlowAction {
+export function advanceWithResult(result: string, workflowName?: string, instanceId?: number): FlowAction {
   // Parse result to extract branch choice (looks for 'Branch: N' or 'branch N' pattern)
   let branch: number | undefined;
   const branchMatch = result.match(/\bbranch:?\s*(\d+)\b/i);
@@ -217,10 +269,10 @@ export function advanceWithResult(result: string, workflowName?: string): FlowAc
   }
 
   // Advance to next node
-  const nextResult = next(branch, workflowName);
+  const nextResult = next(branch, workflowName, instanceId);
 
   if (nextResult.terminal) {
-    const inst = db.getActiveInstance(workflowName);
+    const inst = resolveInstance(workflowName, instanceId);
     if (!inst) throw new Error("No active instance found");
     return {
       type: 'complete',
@@ -232,6 +284,5 @@ export function advanceWithResult(result: string, workflowName?: string): FlowAc
   }
 
   // Get the next action
-  return getAction(workflowName, result);
+  return getAction(workflowName, result, instanceId);
 }
-
