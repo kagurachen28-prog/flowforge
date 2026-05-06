@@ -255,7 +255,34 @@ nodes:
       - 跳过了 plan 里的某个变更项但没说原因 → 你忘了或在回避\n- push 前没跑测试就说\"应该没问题\"\
       \ → 你在猜不是在验证\n- 改了接口但没 grep 相关 mock/stub 文件 → CI 会告诉你\n- acpx exec 的\
       \ task 里没包含上下文（issue 讨论/维护者偏好）→ Claude Code 会猜着做\n汇报实现结果和测试状态。\n"
-    next: submit
+    next: pre_push_audit
+
+  pre_push_audit:
+    task: |
+      **机械验证关卡** — 不提供证据不准过。（灵感来源：thClaws /goal 系统的 mechanical completion audit）
+
+      这一步的存在理由：implement 节点里的"push 前自检"是文字指令，可以跳过。
+      这个节点把验证从建议变成硬性关卡——你必须在这里展示证据，不是声称"已验证"。
+
+      **必须提供以下证据（复制粘贴实际输出，不是描述）：**
+
+      1. **测试输出**：粘贴 `npm test` / `pytest` / `go test` 等的实际输出（至少最后 10 行）
+         - 如果项目没有测试命令 → 粘贴 `tsc --noEmit` 或 lint 输出
+         - 如果都没有 → 明确写"该项目无测试/lint 命令"并说明你做了什么替代验证
+      2. **diff-stat**：粘贴 `git diff --stat HEAD~1`（或对应的 diff 范围）的实际输出
+      3. **接口影响检查**：如果改了接口/类型/导出，粘贴 grep mock/stub 的结果
+         - 没改接口 → 写"本次无接口变更"
+      4. **plan 对照**：plan 阶段列了 N 个变更项，这里逐项打勾 ✅ 或说明为什么跳过
+
+      **判定规则：**
+      - 4 项证据都提供了 → 通过，去 submit
+      - 任何一项缺失或只是文字描述而非实际输出 → 不通过，回 implement 补
+      - "应该没问题""测试太慢跳过了""改动很小不需要测" → 不通过
+    branches:
+    - condition: 所有证据齐全，验证通过
+      next: submit
+    - condition: 证据不足，需要补充
+      next: implement
 
   submit:
     task: '提交 PR：
