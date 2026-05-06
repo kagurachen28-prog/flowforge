@@ -12,6 +12,7 @@ export interface WorkflowNode {
   branches?: Branch[];
   terminal?: boolean;
   max_visits?: number;  // plateau detection: warn after this many visits (default: 5)
+  guard?: string;  // shell command to run before this node; non-zero exit blocks progression
 }
 
 export interface Workflow {

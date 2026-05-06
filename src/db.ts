@@ -15,6 +15,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
     yaml_content TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'auto',
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
   );
@@ -40,22 +41,43 @@ db.exec(`
 
 // --- Workflow queries ---
 
-export function upsertWorkflow(name: string, yaml: string) {
+export function upsertWorkflow(name: string, yaml: string, source: 'auto' | 'manual' = 'auto') {
+  // Only upsert if: new source is 'manual' (always overwrite), OR existing record is also 'auto'
+  const existing = getWorkflow(name);
+  if (existing && existing.source === 'manual' && source === 'auto') {
+    // Manual registrations are protected from auto-overwrite
+    return;
+  }
   db.prepare(`
-    INSERT INTO workflows (name, yaml_content) VALUES (?, ?)
-    ON CONFLICT(name) DO UPDATE SET yaml_content = ?, updated_at = datetime('now')
-  `).run(name, yaml, yaml);
+    INSERT INTO workflows (name, yaml_content, source) VALUES (?, ?, ?)
+    ON CONFLICT(name) DO UPDATE SET yaml_content = ?, source = ?, updated_at = datetime('now')
+  `).run(name, yaml, source, yaml, source);
+}
+
+export function deleteWorkflow(name: string) {
+  db.prepare("DELETE FROM workflows WHERE name = ?").run(name);
 }
 
 export function getWorkflow(name: string) {
   return db.prepare("SELECT * FROM workflows WHERE name = ?").get(name) as
-    | { id: number; name: string; yaml_content: string }
+    | { id: number; name: string; yaml_content: string; source: string }
     | undefined;
 }
 
+export function getWorkflowById(id: number) {
+  return db.prepare("SELECT * FROM workflows WHERE id = ?").get(id) as
+    | { id: number; name: string; yaml_content: string; source: string }
+    | undefined;
+}
+
+export function getInstance(id: number) {
+  return db.prepare("SELECT * FROM instances WHERE id = ?").get(id) as InstanceRow | undefined;
+}
+
 export function listWorkflows() {
-  return db.prepare("SELECT name, updated_at FROM workflows ORDER BY name").all() as {
+  return db.prepare("SELECT name, source, updated_at FROM workflows ORDER BY name").all() as {
     name: string;
+    source: string;
     updated_at: string;
   }[];
 }
@@ -80,10 +102,15 @@ export function getActiveInstance(workflowName?: string) {
   ).get() as InstanceRow | undefined;
 }
 
-export function listActiveInstances() {
+export function listActiveInstances(workflowName?: string) {
+  if (workflowName) {
+    return db.prepare(
+      "SELECT id, workflow_name, current_node, created_at, status FROM instances WHERE workflow_name = ? AND status = 'active' ORDER BY id"
+    ).all(workflowName) as { id: number; workflow_name: string; current_node: string; created_at: string; status: string }[];
+  }
   return db.prepare(
-    "SELECT id, workflow_name, current_node, created_at FROM instances WHERE status = 'active' ORDER BY id"
-  ).all() as { id: number; workflow_name: string; current_node: string; created_at: string }[];
+    "SELECT id, workflow_name, current_node, created_at, status FROM instances WHERE status = 'active' ORDER BY id"
+  ).all() as { id: number; workflow_name: string; current_node: string; created_at: string; status: string }[];
 }
 
 export function updateInstanceNode(id: number, node: string) {
