@@ -39,6 +39,14 @@ db.exec(`
   );
 `);
 
+// Migration: add source column if missing (for databases created before the source field was added)
+try {
+  const cols = db.prepare("PRAGMA table_info(workflows)").all() as { name: string }[];
+  if (!cols.find(c => c.name === 'source')) {
+    db.exec("ALTER TABLE workflows ADD COLUMN source TEXT NOT NULL DEFAULT 'auto'");
+  }
+} catch (_) { /* ignore - table may not exist yet */ }
+
 // --- Workflow queries ---
 
 export function upsertWorkflow(name: string, yaml: string, source: 'auto' | 'manual' = 'auto') {

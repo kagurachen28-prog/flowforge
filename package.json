@@ -1,6 +1,6 @@
 {
   "name": "@lieeesson/flowforge",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "Fork of FlowForge — Enforced workflow engine for AI agents with instance management, guard nodes, and pnpm support",
   "type": "module",
   "bin": {

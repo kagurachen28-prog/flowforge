@@ -10,6 +10,8 @@ function autoLoadWorkflows() {
     join(process.env.HOME || "~", ".openclaw", "workspace", "flowforge", "workflows")
   ];
 
+  const scannedNames: string[] = [];
+
   for (const dir of workflowDirs) {
     if (!existsSync(dir)) continue;
 
@@ -21,12 +23,24 @@ function autoLoadWorkflows() {
         try {
           const content = readFileSync(join(dir, file), "utf-8");
           engine.define(content, "auto");
+          // Extract workflow name from YAML
+          const nameMatch = content.match(/^name:\s*(.+)/m);
+          if (nameMatch) scannedNames.push(nameMatch[1].trim());
         } catch (e) {
           // Silently skip invalid workflow files
         }
       }
     } catch (e) {
       // Directory not accessible, skip
+    }
+  }
+
+  // Clean up orphaned auto-loaded workflows:
+  // Delete workflows whose source='auto' but are no longer present in scanned files
+  const allWorkflows = engine.list();
+  for (const wf of allWorkflows) {
+    if (wf.source === "auto" && !scannedNames.includes(wf.name)) {
+      engine.deleteWorkflow(wf.name);
     }
   }
 }
