@@ -5,14 +5,30 @@ start: tool_review
 nodes:
   tool_review:
     task: |
-      工具进化 Review（异常优先，简洁输出）。
-      1. 扫 workspace、cron、插件目录，列出所有工具
-      2. 对每个工具快速判断：有问题？→ 详细写。没问题？→ 一行带过（"✅ 正常"）
-      3. 只对有异常/变化/值得关注的工具展开五个问题：
-         a. 还在用吗？ b. 好用吗？ c. 还需要吗？ d. 上游更新了吗？ e. 服务到位吗？
+      工具进化 Review（diff-scoped，只深入检查变更项）。
+      
+      **第一步：运行 diff pre-check**
+      ```bash
+      bash ~/.openclaw/workspace/tools/review-diff-check.sh 24
+      ```
+      这会列出过去 24h 变更的 tool/DNA/workflow/strategy 文件。
+      
+      **第二步：根据 diff 结果决定深度**
+      - NO_CHANGES → 快速验证关键服务在线（版本号 + 磁盘），跳过逐个工具检查
+      - 有变更 → 只对变更的文件/工具展开五个问题：
+        a. 还在用吗？ b. 好用吗？ c. 还需要吗？ d. 上游更新了吗？ e. 服务到位吗？
+      - 无论是否有变更，始终检查：磁盘使用率、cron error 数
+      
+      **第三步：固定检查项（每次都做，但一行带过）**
+      - FlowForge / GoGetAJob / memex 版本 [已验证]
+      - Node / Go 版本 [已验证]
+      - 根盘使用率 [已验证]
+      - cron 错误数 [已验证]
+      
       4. 基本纪律：数据必须查、标注 [已验证/未验证]
-      ⚠️ 目标：控制输出长度，为后续节点留 token 预算。正常的工具不需要长篇报告。
-      ⚠️ 硬限制：本节点最终输出不超过 30 行。正常工具一行带过，只展开异常项。
+      ⚠️ 目标：控制输出长度，为后续节点留 token 预算。未变更工具不需要任何报告。
+      ⚠️ 硬限制：本节点最终输出不超过 30 行。变更工具展开，其余一行带过。
+      💡 设计原理：Dreamer "Context Phase only touches what changed" — 不重读未变内容。
     branches:
       - condition: "所有工具都逐个回答了五个问题"
         next: strategy_review
