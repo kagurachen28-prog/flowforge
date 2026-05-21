@@ -26,6 +26,7 @@ nodes:
       - cron 错误数 [已验证]
       
       4. 基本纪律：数据必须查、标注 [已验证/未验证]
+      5. 🔴 **强制行动闭环**：每标记一个问题，必须同时写出对应行动（创建 TODO 条目 / 提 GitHub issue / 当场 commit 修复）。纯观测不允许——"发现 X 问题"后面必须紧跟"行动：Y"。如果当场无法行动，必须说明具体 blocker 并 @ Luna。
       ⚠️ 目标：控制输出长度，为后续节点留 token 预算。未变更工具不需要任何报告。
       ⚠️ 硬限制：本节点最终输出不超过 30 行。变更工具展开，其余一行带过。
       💡 设计原理：Dreamer "Context Phase only touches what changed" — 不重读未变内容。
@@ -143,7 +144,9 @@ nodes:
       **同时记录 eval 指标**（追加到 evolution-log/当天日期.md 末尾）：
       ```
       ## Eval Baseline
-      - PR merge rate: X% (N merged / M total) — 来源: gogetajob stats [已验证]
+      ⚠️ **数据新鲜度纪律**：所有 Eval 数据必须当轮重新查询。禁止沿用旧数据标 [已验证]。
+      如果因 token/时间限制无法重新查询，必须标 [未验证/沿用 MM-DD 数据]，不得标 [已验证]。
+      - PR merge rate: X% (N merged / M total) — 来源: gogetajob stats [已验证] — ⚠️ 必须当轮跑 `gogetajob stats`
       - beliefs-candidates total: N 条 — ⚠️ 必须用 awk 分段计数，禁止整文件 grep -c：
         ```bash
         awk '/^## /{section=$0} /^- [0-9]{4}-/{count[section]++; total++} END{for(s in count) print s, count[s]; print "TOTAL:", total}' beliefs-candidates.md
